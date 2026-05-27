@@ -5,10 +5,13 @@
 
 ## Visual design
 
-- **Prototype:** [`prototype.html`](prototype.html) — source of truth, produced by `ui-designer`.
+- **Preview component:** `ui/src/features/funnels/Funnels.preview.tsx` — produced by `ui-designer`. Mounted at `/preview/funnels`. **This is the design contract.**
+- **Real component:** `ui/src/features/funnels/Funnels.tsx` — pure, takes funnel result data as props.
+- **Page wrapper:** `ui/src/features/funnels/FunnelsPage.tsx` — fetches funnel analysis, handles loading/error/ok.
 - **Spec:** [`ui-spec.md`](ui-spec.md) — rationale, states, interactions.
-- **States in prototype:** TODO — list the states the prototype covers (empty, loading, error, 2-step, many-step, zero-conversion, …).
+- **States covered:** TODO — pull from `ui-spec.md` (empty, loading, error, 2-step, many-step, zero-conversion, …).
 - **Open design questions:** TODO — pull from `ui-spec.md`; must be empty before engineering implementation starts.
+- **E2E test:** `e2e/test/funnels.spec.ts` — seeds a funnel sequence via `/api/*`, navigates to real route, asserts step counts + conversion %.
 
 ## Acceptance test entry point
 

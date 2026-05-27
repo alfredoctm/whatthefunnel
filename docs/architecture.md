@@ -13,12 +13,12 @@ C4Context
 
   Person(operator, "Operator", "Solo dev or small team running WTF on their own infra")
   System_Ext(source, "Event source", "Any app or script that POSTs events")
-  System_Ext(viewer, "Profile viewer", "Anything that GETs a user's event log (curl, future UI, future SDK)")
+  Person(profileViewer, "Profile viewer", "Looks at user event logs in a browser")
 
-  System(wtf, "WTF", "Self-hostable, open-source product analytics. Ingests events, serves per-user event logs.")
+  System(wtf, "WTF", "Self-hostable, open-source product analytics. Ingests events, serves a browser UI on top.")
 
-  Rel(source, wtf, "Sends events", "HTTP POST /events")
-  Rel(viewer, wtf, "Reads user event logs", "HTTP GET /users/:id/events")
+  Rel(source, wtf, "Sends events", "HTTP POST /api/events")
+  Rel(profileViewer, wtf, "Views user event logs", "Browser → HTTPS")
   Rel(operator, wtf, "Operates & deploys", "docker compose")
 ```
 
@@ -30,17 +30,19 @@ C4Container
 
   Person(operator, "Operator")
   System_Ext(source, "Event source")
-  System_Ext(viewer, "Profile viewer")
+  Person(profileViewer, "Profile viewer")
 
   Container_Boundary(wtf, "WTF") {
+    Container(web, "web", "nginx", "Serves the React UI as static assets and reverse-proxies /api/* to the api service. Single origin from the browser's perspective.")
     Container(api, "api", "Node 22 + Fastify (TypeScript, ESM)", "POST /events, GET /users/:id/events. Hexagonal + CQRS internals.")
     ContainerDb(ch, "clickhouse", "ClickHouse 24.8", "Events table — MergeTree, monthly partitions, ORDER BY (event_name, hour, user_id, ts).")
   }
 
-  Rel(source, api, "POST events", "HTTPS / JSON")
-  Rel(viewer, api, "GET user events", "HTTPS / JSON")
+  Rel(source, api, "POST events", "Direct HTTP / JSON (or via web's /api/ proxy)")
+  Rel(profileViewer, web, "Browses /users/:id/events", "HTTPS")
+  Rel(web, api, "Reverse-proxies /api/*", "Internal HTTP")
   Rel(api, ch, "Inserts + reads via @clickhouse/client", "HTTP 8123")
-  Rel(operator, wtf, "docker compose up", "")
+  Rel(operator, wtf, "docker compose up --build --wait", "")
 ```
 
 ## C4 Level 3 — Components inside `api`
@@ -127,6 +129,34 @@ sequenceDiagram
   Fastify-->>Client: 200 OK<br/>JSON Event[]
 ```
 
+## Sequence — browser loads `/users/:userId/events`
+
+```mermaid
+sequenceDiagram
+  autonumber
+  participant Browser
+  participant Nginx as nginx (web)
+  participant Api as api (Fastify)
+  participant CH as ClickHouse
+
+  Browser->>Nginx: GET /users/u-1/events
+  Note over Nginx: SPA fallback — any non-file URL → index.html
+  Nginx-->>Browser: 200 index.html
+  Browser->>Nginx: GET /main.js (absolute path)
+  Nginx-->>Browser: 200 esbuild bundle
+  Browser->>Nginx: GET /index.css
+  Nginx-->>Browser: 200 Tailwind output
+  Note over Browser: React boots, react-router-dom matches<br/>/users/:userId/events → UserEventsPage<br/>useEffect kicks off the fetch
+  Browser->>Nginx: GET /api/users/u-1/events?limit=50
+  Note over Nginx: location /api/ + proxy_pass http://api:3000/<br/>strips /api prefix
+  Nginx->>Api: GET /users/u-1/events?limit=50
+  Api->>CH: SELECT … (per the read sequence above)
+  CH-->>Api: rows
+  Api-->>Nginx: 200 JSON
+  Nginx-->>Browser: 200 JSON
+  Note over Browser: React re-renders with the events,<br/>UserEvents component shows the list
+```
+
 ## Why this matters
 
 The point of these diagrams isn't documentation for its own sake — it's that
@@ -134,7 +164,9 @@ the **same** structure shows up at every level: at the Container level there's
 one aggregate, at the Component level the aggregate has clearly-named ports
 with two implementations each (real + fake), and at the Sequence level the call
 chain is short and predictable. When new aggregates land (`users/`, …), they
-slot in as sibling components without touching anything else.
+slot in as sibling components without touching anything else. The UI tier
+(React in nginx) is a separate process — connected to the api only via the
+JSON HTTP boundary.
 
 If a future change makes any of these diagrams misleading, that change is the
 problem — update the code or update the diagram, but never let the picture and

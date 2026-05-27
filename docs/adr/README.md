@@ -52,3 +52,5 @@ Write an ADR when a decision will be **surprising or load-bearing later**:
 - [0004 — No application-layer unit tests](0004-no-application-unit-tests.md)
 - [0005 — Parametrized real-vs-fake contract tests](0005-parametrized-contract-tests.md)
 - [0006 — Per-aggregate folder layout](0006-per-aggregate-folder-layout.md)
+- [0007 — React + Tailwind + esbuild for the UI (no Vite)](0007-react-tailwind-esbuild.md)
+- [0008 — Playwright E2E is the primary test tier for UI features](0008-playwright-e2e-primary.md)

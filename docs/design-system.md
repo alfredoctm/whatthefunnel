@@ -1,101 +1,64 @@
 # WTF Design System
 
-The design system is the **shared vocabulary** every feature's `prototype.html`
-draws from. Tokens (colors, type scale, spacing, radii) and base components
-(button, table row, card, chart container) live here. Features compose; they
-don't redefine.
+The design system is the **shared vocabulary** every feature's React component
+draws from. Tailwind utility classes + a small set of reusable React
+components live here. Features compose; they don't redefine.
 
-## Status
+## Stack (settled in Phase 1.5)
 
-> **Phase 1.5 — not yet built.** This document is the contract for what Phase
-> 1.5 will produce. Until then, `ui-designer` cannot run.
+- **Framework:** Tailwind v3 (standalone CLI, no PostCSS dance).
+- **Build:** `tailwindcss -i src/index.css -o dist/index.css` — runs as part of `ui/`'s `npm run build`.
+- **Theme:** Tailwind defaults. Project tokens (if/when needed) extend `ui/tailwind.config.ts` `theme.extend`.
+- **No separate `tokens.css` or `components.css`** — Tailwind utilities + small shared React components are the system.
 
-## Files (target locations)
+## Files
 
 ```
-api/src/adapters/inbound/http/
-  styles/
-    tokens.css           Design-system tokens — colors, type, spacing, radius
-    components.css       Base components (or framework equivalent)
-  static/
-    htmx.min.js          HTMX interaction layer
+ui/
+  src/
+    index.css              Tailwind directives (@tailwind base/components/utilities)
+    components/            Shared base components (Button, Card, EmptyState, …)
+                           — populated as features need them.
+    features/<feature>/    Feature-specific components
+  tailwind.config.ts       Theme extensions (currently empty — Tailwind defaults)
 ```
 
-These files live in the inbound HTTP adapter because, per hexagonal architecture,
-styling is a presentation concern — never imported by the core.
+## Tailwind discipline
 
-## CSS framework choice
+- **Compose, don't restyle.** A feature uses `<Button variant="primary">` (when it exists) rather than reapplying primary-button utilities inline.
+- **Don't introduce new color shades inline.** Tailwind's slate / blue / red / green palettes are the system. New tokens go in `tailwind.config.ts` theme extensions, deliberately.
+- **No CSS-in-JS, no custom stylesheets per component.** The point of Tailwind is "the markup is the style." Going back to component CSS files defeats it.
+- **Class lists getting long?** Extract a `components/<Name>.tsx` wrapper, not a `.css` class.
 
-To be picked in Phase 1.5. Candidates:
+## Base components (grow as needed)
 
-| Framework | Build step | Density | Fit with HTMX | Notes |
-|---|---|---|---|---|
-| **Pico** (recommended) | None | Semantic, opinionated defaults | Excellent | Classless or class-light; styles raw HTML well |
-| **Tailwind + DaisyUI** | Yes (small) | Utility-first + ready components | Excellent | Most flexibility; small build overhead |
-| **Shoelace** | None | Web components | Good | Components are heavier; less idiomatic with HTMX |
-| **Plain CSS** | None | Whatever you build | N/A | Maximum control, slowest to ship |
+Lives under `ui/src/components/`. Build only when at least two features need the same thing — premature shared components are worse than duplication. Likely candidates as Phase 2 lands:
 
-Decision goes in `thoughts/phase-1.5/findings.md` with rationale.
-
-## Token taxonomy
-
-`tokens.css` defines (at minimum):
-
-```css
-:root {
-  /* Color */
-  --color-bg, --color-surface, --color-border
-  --color-text, --color-text-muted
-  --color-primary, --color-primary-hover, --color-primary-text
-  --color-success, --color-warning, --color-danger
-  --color-chart-1 … --color-chart-6  /* qualitative palette for segments/funnels */
-
-  /* Type */
-  --font-sans, --font-mono
-  --text-xs, --text-sm, --text-base, --text-lg, --text-xl, --text-2xl
-  --leading-tight, --leading-normal
-
-  /* Spacing (4-step scale) */
-  --space-1, --space-2, --space-3, --space-4, --space-6, --space-8, --space-12, --space-16
-
-  /* Radius / border / shadow */
-  --radius-sm, --radius-md, --radius-lg
-  --border-width
-  --shadow-sm, --shadow-md
-}
-```
-
-`ui-designer` may flag missing tokens in its `ui-spec.md` output ("Tokens
-flagged as missing"). Treat those as design-system PRs — add to `tokens.css`
-deliberately, not feature-by-feature.
-
-## Base components
-
-`components.css` (or the framework's equivalent) defines the visual treatment
-for at least:
-
-- **Button** — primary, secondary, danger variants; loading state
-- **Table row** — compact and comfortable density
+- **Button** — primary, secondary, danger variants; `loading` prop
 - **Card** — surface container with optional header / footer
+- **Table** — compact + comfortable density, sortable
+- **EmptyState** — heading + body + optional action
 - **Chart container** — fixed aspect ratio block where chart libs draw
-- **Empty state** — icon-or-illustration + heading + body + optional action
 - **Form input** — text input, select, with label and error state
-
-Prototypes compose these — they don't restyle them.
 
 ## How `ui-designer` uses this
 
 For every feature, `ui-designer`:
 
-1. Reads `tokens.css` and `components.css` (or this doc if those don't exist yet).
-2. Composes the prototype from base components and tokens.
-3. Flags any missing token / component in `ui-spec.md` rather than inventing inline.
+1. Reads `ui/tailwind.config.ts` (theme tokens) and `ui/src/components/` (existing shared components).
+2. Composes `<Feature>.tsx` from Tailwind utilities + existing shared components.
+3. Promotes a pattern to `ui/src/components/` only when the prototype needs something already used by another feature. Single-use patterns stay inline.
+4. Flags any missing token / component need in `ui-spec.md` under "Design questions" rather than inventing inline.
+
+## Why no token files
+
+Tailwind's design philosophy is that utilities ARE the design tokens — `bg-slate-50`, `text-slate-900`, `space-y-4` are the spelling of "background, color, spacing-step 4." Re-creating a CSS-variable layer on top is double-bookkeeping. Stay in the Tailwind idiom unless we hit a real reason to leave it (e.g., theming, where CSS variables would matter).
 
 ## Figma (optional, deferred)
 
-The user can populate a Figma file from the prototypes later for stakeholder
-sharing. Figma is not a prerequisite, not a source of truth, and not on the
-critical path. If introduced, prototypes remain authoritative — Figma frames
-are derived.
+The user can populate a Figma file from the React previews later for
+stakeholder sharing. Figma is not a prerequisite, not a source of truth, and
+not on the critical path. If introduced, the React component is still
+authoritative — Figma frames are derived from it.
 
-See the `feedback-design-workflow` memory for why prototype-first.
+See the `feedback-design-workflow` memory for why React-component-first.

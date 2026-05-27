@@ -8,17 +8,18 @@ for the build sequence.
 
 ## Stack
 
-- **Language:** TypeScript 5.x, strict mode, ESM
+- **Language:** TypeScript 5.x, strict mode, ESM (everywhere — api, ui, e2e)
 - **API service:** Node.js + Fastify
+- **UI:** React 19 + Tailwind v3 + `react-router-dom` v7. Bundled with **esbuild** (no Vite). Served by nginx.
 - **Storage:** ClickHouse (primary, non-negotiable per goals)
-- **Orchestration:** Docker Compose — one command runs the whole stack
-- **Package manager:** npm
-- **Tests:** Jest + `ts-jest` (ESM) + `fastify.inject()`
-- **Dev runner:** `tsx watch`; **prod:** `tsc --build` → `dist/`, Node runs JS directly
+- **Orchestration:** Docker Compose — one command runs the whole stack (`api` + `clickhouse` + `web`)
+- **Package manager:** npm (three workspaces: `api/`, `ui/`, `e2e/` — no monorepo tooling)
+- **Tests:** Jest + `ts-jest` (ESM) for unit + acceptance + component; `fastify.inject()` for API boundary; `@testing-library/react` + jsdom for UI components; **Playwright for E2E** against the live docker stack.
+- **API dev:** `tsx watch`; **API prod:** `tsc --build` → `dist/`, Node runs JS directly. **UI dev:** `npm run dev` in `ui/` (concurrent tsc/esbuild/tailwind watch); **UI prod:** built into `web/Dockerfile` multi-stage, nginx serves.
 
 See the `feedback-typescript` memory for the full TS setup + the TDD-green gate that
-enforces `tsc --noEmit` at slice closeout. See `feedback-testing-strategy` for the
-layered testing rules.
+enforces `tsc --noEmit` + lint at slice closeout. See `feedback-testing-strategy`
+for the layered testing rules (E2E is primary for UI features per ADR 0008).
 
 ## Layout
 
@@ -50,8 +51,32 @@ api/
   tsconfig.json
   package.json
   Dockerfile
+ui/                          React + Tailwind UI workspace
+  src/
+    features/<feature>/      Feature folder
+      <Feature>.tsx          Pure component (props in, JSX out)
+      <Feature>.preview.tsx  Stub-data preview mounted at /preview/<feature>
+      <Feature>Page.tsx      Data-fetching wrapper for the real route
+      types.ts               Wire-format types (UIEvent etc.)
+    lib/api.ts               Typed fetch wrappers for /api/*
+    routes.tsx               react-router-dom config
+    main.tsx                 Bootstrap (createRoot + App)
+    App.tsx                  Delegates to AppRouter
+    index.css                Tailwind directives
+  test/                      Component tests (Jest + RTL + jsdom)
+  index.html                 Loads /index.css + /main.js (absolute paths)
+  tailwind.config.ts
+  tsconfig.json
+  package.json
+e2e/                         Playwright E2E workspace
+  test/                      *.spec.ts files against the live docker stack
+  playwright.config.ts
+  package.json
+web/
+  Dockerfile                 Multi-stage: builds ui, runs nginx
+  nginx.conf                 Serves ui/dist + reverse-proxies /api/* to api:3000
 clickhouse/init/             Schema migrations, auto-loaded on first boot
-docker-compose.yml           Stack definition: api + clickhouse
+docker-compose.yml           Stack definition: api + clickhouse + web
 docs/
   goals.md                   Product scope, success criteria
   plan.md                    Durable phase-by-phase roadmap

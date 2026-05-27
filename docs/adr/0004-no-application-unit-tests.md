@@ -62,3 +62,12 @@ are limited to the in-memory port fakes under `api/test/fakes/`.
   unit test or `jest.mock` usage as a blocker.
 - Handlers stay thin (delegate to domain + ports). Anything beyond
   orchestration belongs in `domain/`.
+
+## Extension for the UI tier (Phase 1.5+)
+
+The same principle applies to the UI: **don't unit-test trivial component
+wrappers**. The component test (`ui/test/<Component>.test.tsx`) is for
+non-trivial UI logic — conditional rendering across many states, derived
+values, edge cases that would require many E2E permutations. Trivial
+"renders the prop as text" components are covered by [ADR 0008](0008-playwright-e2e-primary.md)
+Playwright E2E.

@@ -5,10 +5,13 @@
 
 ## Visual design
 
-- **Prototype:** [`prototype.html`](prototype.html) — source of truth, produced by `ui-designer`.
+- **Preview component:** `ui/src/features/user-profiles/UserProfiles.preview.tsx` — produced by `ui-designer`. Mounted at `/preview/user-profiles`. **This is the design contract.**
+- **Real component:** `ui/src/features/user-profiles/UserProfiles.tsx` — pure, takes data as props. Reused by both preview and the real page.
+- **Page wrapper:** `ui/src/features/user-profiles/UserProfilesPage.tsx` — fetches data, handles loading/error/ok, renders `<UserProfiles>`.
 - **Spec:** [`ui-spec.md`](ui-spec.md) — rationale, states, interactions.
-- **States in prototype:** TODO — list the states the prototype covers (empty, loading, error, few, many, …).
+- **States covered:** TODO — list from `ui-spec.md` (empty, loading, error, few, many, …).
 - **Open design questions:** TODO — pull from `ui-spec.md`; must be empty before engineering implementation starts.
+- **E2E test:** `e2e/test/user-profiles.spec.ts` — seeds data via `/api/*`, navigates to real route, asserts visible. Also hits `/preview/user-profiles`.
 
 ## Acceptance test entry point
 
