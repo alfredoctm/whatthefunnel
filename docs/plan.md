@@ -7,6 +7,17 @@ engineering harness grows alongside the app.
 See [goals.md](goals.md) for product scope. See [`CLAUDE.md`](../CLAUDE.md) for
 how to work the phases (RPI, `/clear` boundaries, spec-driven features, grill-me).
 
+## Status
+
+| Phase | Status |
+|---|---|
+| **Phase 0 — Claude harness** | ✅ done |
+| **Phase 1 — Walking Skeleton** (api ingest + read, full hex stack proven by parametrized contract tests) | ✅ done |
+| **Phase 1 — Harness expansion** (skills + format/lint/test-on-commit hooks) | ✅ done |
+| **Phase 1.5 — UI workspace + design system + E2E setup** (React + Tailwind + nginx + Playwright) | ✅ done |
+| **Phase 2 — Features** (User Profiles → Segmentation → Funnels) | 🟡 next |
+| **Phase 3 — Background + scheduled automation** | ⬜ later |
+
 ## Working rules
 
 - **Phase = fresh context.** `/clear` between phases. Re-anchor via `CLAUDE.md` + `thoughts/phase-N/`.
@@ -17,7 +28,7 @@ how to work the phases (RPI, `/clear` boundaries, spec-driven features, grill-me
 
 ---
 
-## Phase 0 — Set up the Claude harness
+## Phase 0 — Set up the Claude harness ✅ done
 
 Before any app code, set up the automation surface.
 
@@ -29,14 +40,14 @@ Before any app code, set up the automation surface.
 - [x] **Write `clickhouse-expert` sub-agent** — for schema and query design
 - [x] **Write `plan-griller` sub-agent** — adversarial plan reviewer
 - [x] **Write `code-reviewer` sub-agent** — post-implementation counterpart to grill-me
-- [x] **TDD-guard hook** — `PreToolUse` on `Write|Edit` enforces outside-in TDD on `api/src/**` via `.claude/tdd-state`
+- [x] **TDD-guard hook** — `PreToolUse` on `Write|Edit` enforces outside-in TDD on `api/src/**` and `ui/src/**` via `.claude/tdd-state` (workspace coverage extended in Phase 2 prep)
 - [x] **`scripts/tdd` + `scripts/audit`** — TDD state manager + append-only event log (`.claude/audit.jsonl`)
 - [x] **`.gitignore`** — exclude per-machine state (`tdd-state`, `audit.jsonl`)
-- [x] **Write `ui-designer` sub-agent** — AI designer producing `prototype.html` + `ui-spec.md` per feature
-- [x] **Write `design-handoff` sub-agent** — reads prototype, drives implementation, surfaces ambiguities
-- [x] **Write `design-reviewer` sub-agent** — screenshots rendered feature, compares against prototype
+- [x] **Write `ui-designer` sub-agent** — AI designer producing `<Feature>.tsx` + `<Feature>.preview.tsx` + `ui-spec.md` per feature *(rewritten for React in Phase 1.5 Block 5; was originally HTMX+prototype.html)*
+- [x] **Write `design-handoff` sub-agent** — reads the React preview, plans the wiring (data fetching, route registration, lib/api.ts addition, E2E test)
+- [x] **Write `design-reviewer` sub-agent** — Playwright-based; compares real route against `/preview/<feature>`, surfaces console errors / failed network / blank renders
 
-## Phase 1 — Walking Skeleton
+## Phase 1 — Walking Skeleton ✅ done
 
 Goal: an event flows from `curl` → Fastify → command handler → ClickHouse,
 then `curl` GET → query handler → ClickHouse → JSON back. Thinnest possible
@@ -123,7 +134,7 @@ This block defines the tier they share, so neither slice has to re-invent it.
   - **CI:** integration runs on every PR (full `npm test`). This is where contract drift gets caught for real.
 - **Fixtures:** the real adapter's test uses a per-suite table reset (DROP / CREATE the relevant table in a test schema, or truncate). No shared state across runs.
 
-## Phase 1 — Harness expansion (post-skeleton)
+## Phase 1 — Harness expansion (post-skeleton) ✅ done
 
 > Runs **after** the Walking Skeleton is green. Depends on `api/package.json`
 > existing with `prettier`, `eslint`, `typescript`, and `jest` installed
@@ -138,7 +149,7 @@ This block defines the tier they share, so neither slice has to re-invent it.
 - [x] **Hooks all wired in `.claude/settings.json`** alongside the existing `tdd-guard` and `SessionStart` hooks. Tested with canned stdin input.
 - [x] **Append `thoughts/phase-1/findings.md` + `thoughts/phase-1/progress.md`** — captures the harness additions, the activation caveat (hooks may need next-session restart), and a note that `format-on-write` + `lint-on-write` are friction reducers while the TDD-green gate is the enforcement.
 
-## Phase 1.5 — UI workspace + design system + E2E setup
+## Phase 1.5 — UI workspace + design system + E2E setup ✅ done
 
 Goal: end-to-end UI loop working — a React app rendering events from the api,
 served by nginx, with a Playwright E2E test that exercises the full stack.
@@ -196,7 +207,7 @@ user-visible UI tier verified by a real browser test.
 - [x] **Open question carried into Phase 2:** does the TDD-guard hook also cover `ui/src/**`? *(Addressed in Phase 2 prep #3 — extended below.)*
 - [x] **Append `thoughts/phase-1.5/findings.md` + `progress.md`** — full journey captured (React 19 JSX namespace move, esbuild JSX default, CSS double-emit, SPA relative-paths trap, jest-dom + `@jest/globals` mismatch, nginx strip-prefix idiom).
 
-## Phase 2 — Features (vertical slices in worktrees)
+## Phase 2 — Features (vertical slices in worktrees) 🟡 next
 
 Goal: practice spec-driven, sub-agent-assisted, prototype-first feature
 delivery. Each feature follows the same eight-step loop in its own worktree
@@ -223,7 +234,7 @@ Features in priority order (from `goals.md`):
 - [ ] **Event Segmentation** — filter/group events by properties over time
 - [ ] **Funnels** — ordered step conversion analysis (likely `windowFunnel()` in ClickHouse)
 
-## Phase 3 — Background and scheduled automation
+## Phase 3 — Background and scheduled automation ⬜ later
 
 Goal: exercise long-running and scheduled Claude primitives.
 
