@@ -171,13 +171,14 @@ For each feature in this phase:
 7. Fill `tasks.md` — vertical slices, 1–3h each, first task is always the failing acceptance test.
 8. `EnterWorktree`, implement (invoke `design-handoff` to translate the prototype into the real feature), validate via the `send-event` skill or real curl.
 9. After tests green: run `code-reviewer` + `design-reviewer`. Address findings. Exit worktree.
-10. Append to `thoughts/phase-2/findings.md`.
+10. **Documentation pass** — update C4 component diagram in `docs/architecture.md` if components changed, add a Mermaid sequence diagram to the feature's `design.md`, write any ADRs for non-obvious decisions, update glossary if new terms appeared. (Validated against the Walking Skeleton; see `docs/architecture.md` + `docs/adr/`.)
+11. Append to `thoughts/phase-2/findings.md`.
 
 Features in priority order (from `goals.md`):
 
-- [ ] **User Profiles** — per-user event log page
-- [ ] **Documentation pass — define the per-feature doc step** *(once User Profiles ships)*. Validate options against the real feature (C4 in Mermaid, ADRs, sequence diagrams, glossary, recorded demo, NotebookLM overview, dep graph via madge). Pick keepers, encode as step 11 in the per-feature loop in `CLAUDE.md` + `docs/specs/README.md`. Backfill docs for User Profiles as the first instance.
-- [ ] **Event Segmentation** — filter/group events by properties over time *(now with the documentation step included)*
+- [x] **Documentation discipline defined** *(validated against the Walking Skeleton, not User Profiles as originally planned)*. C4 diagrams + sequence diagrams in `docs/architecture.md`, 6 ADRs in `docs/adr/`, step 10 added to per-feature loop in `CLAUDE.md` + `docs/specs/README.md` + this plan. Glossary deferred until terms drift. Recorded demos / NotebookLM deferred until first UI feature (Phase 1.5+).
+- [ ] **User Profiles** — per-user event log page (now with the documentation step included)
+- [ ] **Event Segmentation** — filter/group events by properties over time
 - [ ] **Funnels** — ordered step conversion analysis (likely `windowFunnel()` in ClickHouse)
 
 ## Phase 3 — Background and scheduled automation

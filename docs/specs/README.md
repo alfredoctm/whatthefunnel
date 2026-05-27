@@ -18,7 +18,7 @@ input to design against, and creates a durable artifact that survives `/clear`.
 
 ## Workflow per feature
 
-Eight steps. Mirrors a real product-team flow (PRD review → design + eng in parallel → joint review → build → review). See [`../../CLAUDE.md`](../../CLAUDE.md) → "Spec-driven features" and "Design phase" for full context.
+Eleven steps. Mirrors a real product-team flow (PRD review → design + eng in parallel → joint review → build → review → document). See [`../../CLAUDE.md`](../../CLAUDE.md) → "Spec-driven features" and "Design phase" for full context.
 
 1. **Read** `goals.md`, the Architecture + Design phase sections of `CLAUDE.md`, `docs/design-system.md`, and any relevant `thoughts/`.
 2. **Write `requirements.md`** — pair with user on ambiguity. No solutions.
@@ -34,7 +34,12 @@ Eight steps. Mirrors a real product-team flow (PRD review → design + eng in pa
 7. **Write `tasks.md`** — vertical slices, 1–3 hours each. **First task is always the failing acceptance test.** Then port → handler (with unit test) → inbound adapter (HTTP + HTML templates) → outbound adapter → composition wiring.
 8. **Implement in a worktree** (`EnterWorktree`). Invoke `design-handoff` to plan the wiring of `prototype.html` into real templates. Implement under the TDD-guard hook.
 9. **After tests green:** run `code-reviewer` (engineering diff) and `design-reviewer` (rendered feature vs. prototype). Address findings. Exit worktree.
-10. **Update `thoughts/phase-2/findings.md`** as you learn.
+10. **Documentation pass.** See [`../architecture.md`](../architecture.md) and [`../adr/`](../adr/) for the canonical pattern. For this feature:
+    - Update the **C4 Component** diagram in `docs/architecture.md` if you added new components.
+    - Add a **Mermaid sequence diagram** of the feature's flow(s) to its `design.md` next to the Visual Design section.
+    - Write **ADRs** (`docs/adr/NNNN-<title>.md`) for any decision that will be surprising or load-bearing later (criteria in `docs/adr/README.md`).
+    - Update `docs/glossary.md` if any new domain term entered the ubiquitous language.
+11. **Update `thoughts/phase-2/findings.md`** as you learn.
 
 ## Features
 

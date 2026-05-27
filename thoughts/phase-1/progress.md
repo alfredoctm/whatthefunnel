@@ -47,3 +47,13 @@
 - Parametrized integration test: `EventReader.contract.test.ts` — 4 tests × 2 implementations = 8 passing.
 - Slice closeout via `scripts/tdd green` — passing acceptance (4 tests) + typecheck. Audit log: `tdd_green {tests: passed, typecheck: passed}`.
 - **Walking Skeleton complete.** Both write and read paths verified by parametrized contract tests against real ClickHouse + in-memory fake. 12/12 integration green, 4/4 acceptance green.
+
+### Lint added to the gate
+- `scripts/tdd green` now runs `test:fast` + `typecheck` + `lint`. Fixed the 5 lint errors that escaped commit `3368e2b` (unnecessary type assertions in `read-events.test.ts`, `setupInMemory` async-without-await in both contract tests). Committed in `22641d8`.
+
+### Documentation pass
+- `docs/architecture.md` — C4 Context + Container + Component diagrams + sequence diagrams for the two flows. All Mermaid; renders in GitHub.
+- `docs/adr/` — README + ADRs `0001` through `0006` covering hexagonal+CQRS, TS strict+ESM, Jest+ts-jest, no application unit tests, parametrized contract tests, per-aggregate folder layout.
+- Step 10 (documentation pass) added to the per-feature loop in `CLAUDE.md`, `docs/specs/README.md`, and `docs/plan.md` Phase 2.
+- Resolved task #35 ("After User Profiles: define + implement per-feature documentation step") — done early, against the richer target.
+- Glossary, recorded demos, NotebookLM, dep graph all deferred with rationale captured in `findings.md`.

@@ -111,3 +111,13 @@ offset (offset is O(n) in ClickHouse). Return is `Event[]`, no total count —
 - Lint errors that escaped: 3 `no-unnecessary-type-assertion` (fastify-inject's `response.json()` is already typed, the `as Array<...>` cast was redundant), and 2 `require-await` (`setupInMemory` was `async` but had no `await` in body).
 - **Fixed by:** switching to the typed generic form `response.json<EventJson[]>()`; dropping `async` from the `setupInMemory` functions and returning `Promise.resolve({...})` explicitly. Eliminates both error classes at the source rather than disabling lint rules.
 - **Added `npm run lint` to `scripts/tdd green`** as the third check (after `test:fast` and `typecheck`). Lint failure now refuses the green flip with the same audit log treatment as the other gates. CLAUDE.md and `feedback-typescript` memory updated.
+
+## 2026-05-27 — Documentation discipline defined against the Walking Skeleton
+
+- Originally queued as "after User Profiles" (task #35). Brought forward because the Walking Skeleton — full hex stack proven through both write and read paths — is actually a richer target for the doc step than a single Phase 2 feature would be.
+- **What landed:**
+  - `docs/architecture.md` — C4 Context + Container + Component (Mermaid), plus sequence diagrams for `POST /events` and `GET /users/:id/events`.
+  - `docs/adr/` with README + 6 ADRs for the load-bearing decisions (hexagonal+CQRS, TS strict+ESM, Jest+ts-jest, no app unit tests, parametrized contract tests, per-aggregate folders).
+  - Step 10 added to the per-feature loop in `CLAUDE.md` (`Spec-driven features` section), `docs/specs/README.md`, and `docs/plan.md` Phase 2.
+- **Deferred** with rationale: glossary (no ambiguous terms have drifted yet), recorded demo + NotebookLM (more interesting once a UI exists in Phase 1.5+), madge dep graph (only 8 source files — graph is trivial today).
+- **Sync risk noted:** the 6 ADRs overlap heavily with the memory files. Memory is for me; ADRs are for humans. When updating one, scan the other. Acceptable cost for now.

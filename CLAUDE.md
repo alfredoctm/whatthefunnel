@@ -161,6 +161,11 @@ Phase 2 features get their own dir under `docs/specs/<feature>/`. The per-featur
 6. Fill `tasks.md` with 1–3 hour vertical slices. **First task is always the failing acceptance test.**
 7. Implement in a worktree (`EnterWorktree`). The `design-handoff` sub-agent reads `prototype.html` + `ui-spec.md` and translates them into the real feature implementation (HTMX wiring, real data binding, real handlers).
 8. After tests green: run `code-reviewer` (attacks the engineering diff) and `design-reviewer` (screenshots the rendered feature, compares against `prototype.html`). Address before merging.
+9. **Documentation pass.** See [`docs/architecture.md`](docs/architecture.md) for the canonical pattern (proven against the Walking Skeleton). For the new feature:
+   - Add or update the **C4 Component** diagram in `docs/architecture.md` if the feature introduced new components.
+   - Add a **Mermaid sequence diagram** of the new flow(s) to the feature's `design.md` (next to the Visual Design section).
+   - Write **ADRs** (`docs/adr/NNNN-<title>.md`) for any decision that will be surprising or load-bearing later (per the criteria in `docs/adr/README.md`). Skip for tactical choices.
+   - Update `docs/glossary.md` if any new domain term entered the ubiquitous language.
 
 ### Grill-me discipline
 
