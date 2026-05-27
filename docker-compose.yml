@@ -1,0 +1,41 @@
+services:
+  clickhouse:
+    image: clickhouse/clickhouse-server:24.8
+    container_name: wtf-clickhouse
+    restart: unless-stopped
+    ports:
+      - "8123:8123"      # HTTP interface
+      - "9000:9000"      # Native protocol (used by @clickhouse/client when configured)
+    volumes:
+      - clickhouse-data:/var/lib/clickhouse
+      - ./clickhouse/init:/docker-entrypoint-initdb.d:ro
+    ulimits:
+      nofile:
+        soft: 262144
+        hard: 262144
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:8123/ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 12       # up to ~60s for cold start
+      start_period: 5s
+
+  api:
+    build: ./api
+    container_name: wtf-api
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      CLICKHOUSE_URL: http://clickhouse:8123
+      PORT: "3000"
+      LOG_LEVEL: info
+      NODE_ENV: production
+    depends_on:
+      clickhouse:
+        condition: service_healthy
+    # Note: this service can't build until Phase 1 Slice 1 creates api/src/server.ts.
+    # Until then, bring up ClickHouse only:  docker compose up -d clickhouse
+
+volumes:
+  clickhouse-data:
