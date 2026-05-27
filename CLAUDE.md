@@ -15,25 +15,38 @@ for the build sequence.
 
 ## Layout
 
-Target structure as the project grows:
+Target structure as the project grows. The `api/` tree follows hexagonal
+(ports & adapters) — see **Architecture** below.
 
 ```
-api/                 Fastify service (POST /events, query endpoints)
+api/
   src/
+    domain/                  Pure value objects (Event, UserId, …). No I/O.
+    application/
+      commands/              Command + handler pairs (writes)
+      queries/               Query + handler pairs (reads)
+      ports/                 Interfaces (EventWriterPort, EventReaderPort, …)
+    adapters/
+      inbound/http/          Fastify routes calling handlers
+      outbound/clickhouse/   ClickHouse implementations of ports
+    composition.js           Wires adapters into handlers
+    server.js                Boots Fastify
+  test/
+    acceptance/              Outside-in entry points (fastify.inject)
+    unit/                    Narrower tests as outside-in flow demands them
   package.json
   Dockerfile
-clickhouse/          Init SQL, schema migrations
-  init/              Auto-loaded by clickhouse-server on first boot
-docker-compose.yml   Stack definition: api + clickhouse
+clickhouse/init/             Schema migrations, auto-loaded on first boot
+docker-compose.yml           Stack definition: api + clickhouse
 docs/
-  goals.md           Product scope, success criteria
-  plan.md            Durable phase-by-phase roadmap
-  specs/             Per-feature requirements.md / design.md / tasks.md
-thoughts/            Per-phase findings.md + progress.md (external memory)
+  goals.md                   Product scope, success criteria
+  plan.md                    Durable phase-by-phase roadmap
+  specs/                     Per-feature requirements.md / design.md / tasks.md
+thoughts/                    Per-phase findings.md + progress.md (external memory)
 .claude/
-  settings.json      Permissions, hooks
-  agents/            Custom sub-agents (clickhouse-expert, plan-griller)
-  skills/            Project-local skills (Phase 1+)
+  settings.json              Permissions, hooks
+  agents/                    Custom sub-agents (clickhouse-expert, plan-griller)
+  skills/                    Project-local skills (Phase 1+)
 ```
 
 ## How to run
@@ -46,9 +59,33 @@ docker compose down         # stop
 
 Once a `run` skill exists (Phase 1), prefer invoking it over raw docker commands.
 
+## Architecture
+
+These are non-negotiable. Do not propose dropping them as "premature complexity for an MVP" — they are stated requirements.
+
+### Hexagonal (ports & adapters)
+
+- **Pure core, dirty edges.** `domain/` and `application/` have no I/O and no framework imports. All I/O crosses an explicit port (interface) implemented by an adapter under `adapters/`.
+- **Direction of dependency points inward.** Adapters import from the core; the core never imports from adapters.
+- **Wiring lives in `composition.js`.** It is the only place that knows the concrete adapter classes. Handlers receive ports via constructor injection.
+
+### CQRS — commands and queries are separate
+
+- **Writes go through commands.** `commands/IngestEventCommand` → `commands/IngestEventHandler` → writes via `EventWriterPort`.
+- **Reads go through queries.** `queries/GetUserEventsQuery` → `queries/GetUserEventsHandler` → reads via `EventReaderPort`.
+- **Reader and writer ports are separate interfaces** even when the same ClickHouse adapter implements both — this preserves the option of read replicas, materialized views, or projection stores later.
+- **A handler is either a command or a query, never both.**
+
+### Outside-in TDD
+
+- **Each vertical slice starts with a failing acceptance test** at the outermost boundary (HTTP for API features, via `fastify.inject()`).
+- **Discover collaborators by what the test demands.** Mock at port boundaries, drop down to the next level only when the failing test requires the next layer to exist.
+- **Do not write a handler before the test that demands it.** Do not write an adapter before the handler demands it.
+- **First commit of a slice is the failing acceptance test.**
+
 ## Conventions
 
-- **No premature abstraction.** MVP scope is tight — three similar lines beats an early helper.
+- **No premature abstraction outside the hexagonal split.** The hexagonal layout is required; everything *inside* a layer follows "three similar lines beats an early helper."
 - **No comments unless the WHY is non-obvious.** Naming carries the WHAT.
 - **No backwards-compat shims.** Pre-1.0 — change code directly.
 - **Skills over memorized commands.** If you'd run the same command 3+ times, make it a skill in `.claude/skills/`.

@@ -31,21 +31,49 @@ Before any app code, set up the automation surface.
 
 ## Phase 1 — Walking Skeleton
 
-Goal: an event flows from `curl` → Fastify → ClickHouse → `SELECT` returns it.
-Thinnest possible end-to-end path. No features beyond ingest + read-back.
-Capture every repeated developer action as a reusable skill or hook.
+Goal: an event flows from `curl` → Fastify → command handler → ClickHouse,
+then `curl` GET → query handler → ClickHouse → JSON back. Thinnest possible
+end-to-end path through the **full hexagonal stack** (so the architecture is
+proven, not just sketched). No features beyond ingest + read-back.
 
-- [ ] **Grill the Phase 1 plan** — run `plan-griller` against this section before starting
+Built **outside-in**: every code step is preceded by a failing acceptance test.
+
+### Tooling decisions (do first)
+
+- [ ] **Pick test framework + mocking style** — recommend `vitest` + `fastify.inject()` + hand-rolled in-memory port fakes. Lock in `package.json`.
+- [ ] **Grill the Phase 1 plan** — run `plan-griller` against this section before writing any code
+
+### Infrastructure
+
 - [ ] **`docker-compose.yml`** — `clickhouse` + `api` services, one shared network
-- [ ] **`clickhouse/init/01_events.sql`** — `events` table (invoke `clickhouse-expert` for schema)
-- [ ] **`api/` skeleton** — `package.json`, `Dockerfile`, `src/server.js` with Fastify boot
-- [ ] **`POST /events`** — single-event ingest, writes to ClickHouse
-- [ ] **Smoke test** — `curl` an event, `SELECT` it back. End of Walking Skeleton.
+- [ ] **`clickhouse/init/01_events.sql`** — `events` table (invoke `clickhouse-expert`; ask it for the writer-port and reader-port contracts in the same response)
+- [ ] **`api/package.json` + `api/Dockerfile`** + minimal `api/src/server.js` that boots Fastify
+
+### Slice 1 — Ingest one event (outside-in)
+
+- [ ] **Acceptance test:** `api/test/acceptance/ingest.test.js` — `fastify.inject` `POST /events` with a valid body, expect 202 and assert via an in-memory `EventWriterPort` fake that the event was written.
+- [ ] **Define port:** `api/src/application/ports/EventWriterPort.js` (interface only)
+- [ ] **Define command + handler:** `IngestEventCommand`, `IngestEventHandler` — handler depends on `EventWriterPort`. Unit-test the handler with the fake.
+- [ ] **Inbound adapter:** `api/src/adapters/inbound/http/events.js` — Fastify route that builds the command and calls the handler.
+- [ ] **Outbound adapter:** `api/src/adapters/outbound/clickhouse/ClickHouseEventWriter.js` — implements `EventWriterPort`.
+- [ ] **Composition:** `api/src/composition.js` wires the real adapter into the handler. Acceptance test now green against a fake; a separate integration test green against the real ClickHouse from docker-compose.
+
+### Slice 2 — Read events back (outside-in)
+
+- [ ] **Acceptance test:** `GET /users/:user_id/events` returns the events written in Slice 1 (assert via an in-memory `EventReaderPort` fake).
+- [ ] **Define port:** `EventReaderPort` (separate from writer per CQRS).
+- [ ] **Define query + handler:** `GetUserEventsQuery`, `GetUserEventsHandler`.
+- [ ] **Inbound adapter:** Fastify route for the GET.
+- [ ] **Outbound adapter:** `ClickHouseEventReader` implements `EventReaderPort`.
+- [ ] **Wire in `composition.js`.** Walking Skeleton ends green here.
+
+### Claude harness expansion
+
 - [ ] **`run` skill** (`.claude/skills/run/`) — start the stack and tail API logs
 - [ ] **`send-event` skill** (`.claude/skills/send-event/`) — fire a synthetic event
 - [ ] **Hook: format-on-write** — `PostToolUse` on Edit/Write of `api/**/*.js` → `prettier --write`
 - [ ] **Hook: lint-on-write** — same matcher, runs `eslint --fix`
-- [ ] **Hook: test-on-commit** — `PreToolUse` matching `git commit` runs `npm test`
+- [ ] **Hook: test-on-commit** — `PreToolUse` matching `git commit` runs `npm test` (unit + acceptance, not the docker integration tier)
 - [ ] **Append `thoughts/phase-1/findings.md`** with anything surprising
 
 ## Phase 2 — Features (vertical slices in worktrees)

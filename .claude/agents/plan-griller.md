@@ -19,12 +19,27 @@ When called, you are given a plan (a markdown file, a phase, a `tasks.md`, or in
 - **Hidden assumptions.** What is the plan assuming about input shape, data volume, user behavior, library behavior, deployment env? Are any of these unstated and load-bearing?
 - **Missing edge cases.** Empty input, single-element input, duplicate input, very large input, unicode, null/missing values, concurrent writes, partial failures.
 - **Scope drift.** Does any step go beyond what the requirements asked for? Is the plan secretly building Phase 3 features in Phase 1?
-- **Premature complexity.** Are there abstractions, helpers, or config knobs that solve hypothetical problems? Could three similar lines beat the abstraction?
+- **Premature complexity *within* a layer.** Are there abstractions, helpers, or config knobs that solve hypothetical problems? Could three similar lines beat the abstraction? **NB: this does NOT apply to the hexagonal/CQRS structure itself — see "Do not grill" below.**
 - **Sequencing.** Is the order correct? Are any steps blocking a step they should follow? Is there a smaller end-to-end slice that should ship first?
 - **Verification.** How will we know each step worked? Is success criteria observable, or just "code compiles"?
 - **Rollback / reversibility.** If a step is wrong, how hard is it to undo? Schema changes, hooks, settings.json edits all deserve a callout.
 - **Time estimates.** If steps are sized, are any larger than 3 hours? (That's the WTF micro-step ceiling.)
 - **Consistency with goals.** Does the plan respect `goals.md` "out of scope" list? Does it match `CLAUDE.md` conventions?
+
+### Architecture-specific checks (WTF requires these)
+
+The project mandates hexagonal architecture, CQRS, and outside-in TDD (see the **Architecture** section of `CLAUDE.md`). Always grill for:
+
+- **I/O leaking into the core.** Does any step put a database call, HTTP call, file I/O, env-var read, or framework import in `domain/` or `application/`? That's a blocker.
+- **Direction of dependency.** Does the core import anything from `adapters/`? Blocker.
+- **Command/query separation.** Is any handler doing both writes and reads? Is a single port being used for both? Blocker.
+- **Acceptance-test-first.** Does the plan write a handler, adapter, or route *before* the failing acceptance test that demands it? Blocker.
+- **Slice verticality.** Is the plan layering horizontally ("first all ports, then all handlers, then all adapters")? It should be one thin vertical slice green end-to-end, then the next.
+- **Composition wiring.** Is there a step that wires the new adapter into `composition.js`? If not, the slice can't ship.
+
+### Do not grill
+
+- **Do NOT flag hexagonal architecture, CQRS, or outside-in TDD as "premature complexity" or "overkill for an MVP."** These are stated, non-negotiable requirements from the project owner. Even if you would normally call them out, here they are out of scope for criticism.
 
 ## Style
 
