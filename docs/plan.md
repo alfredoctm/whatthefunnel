@@ -79,28 +79,29 @@ verifies tests + typecheck before flipping state).
 - [ ] **`api/package.json` + `api/Dockerfile` + `api/tsconfig.json` + `api/tsconfig.build.json`** — package metadata, dependencies (`fastify`, `@clickhouse/client`, `typescript`, `tsx`, `@types/node`, `jest`, `ts-jest`, `@types/jest`, `eslint`, `@typescript-eslint/parser`, `@typescript-eslint/eslint-plugin`, `prettier`). Multi-stage Dockerfile: build stage runs `tsc --build`, runtime stage copies `dist/` + `node_modules` (prod only). **No `server.ts` yet** — that's production code and lives inside Slice 1, where the acceptance test demands it.
 - [ ] **`.env.example`** — declare config surface: `CLICKHOUSE_URL`, `PORT`, `LOG_LEVEL`. Document defaults. Real `.env` is gitignored.
 
-### Slice 1 — Ingest one event (outside-in)
+### Slice 1 — Ingest one event (outside-in) ✓ done
 
-- [ ] **Acceptance test (RED):** write `api/test/acceptance/ingest.test.ts` — `fastify.inject` `POST /events` with a valid body, expect **201**, assert via an `InMemoryEventWriter` fake (under `api/test/fakes/InMemoryEventWriter.ts`, with a public `writes` array for observation, `implements EventWriterPort`) that the event was written. Each test constructs its own `buildApp({ eventWriter, eventReader })` — no shared module state.
-- [ ] **Confirm test fails for the right reason** (no route, no handler, no port yet). Then: `scripts/tdd red api/test/acceptance/ingest.test.ts` — flips TDD-guard so the next bullets can touch `api/src/**`.
-- [ ] **Define port:** `api/src/application/ports/EventWriterPort.ts` — TS interface only (the contract the handler depends on).
-- [ ] **Define command + handler:** `api/src/application/commands/IngestEventCommand.ts`, `api/src/application/commands/IngestEventHandler.ts`. Handler depends on `EventWriterPort` via constructor injection (typed). **No unit test for the handler** — acceptance test covers it (per testing-strategy memory).
-- [ ] **Inbound adapter:** `api/src/adapters/inbound/http/events.ts` — Fastify route, builds the command, calls the handler, returns 201. Content-type agnostic where possible — keep JSON serialization in a thin presenter so Phase 1.5 can add HTML without rewriting the route.
-- [ ] **Composition factory:** `api/src/composition.ts` exports `buildApp({ eventWriter, eventReader }: Deps): FastifyInstance`. Only place that knows concrete adapter classes. Tests call `buildApp` with fakes; prod calls it with real adapters.
-- [ ] **Production entry point:** `api/src/server.ts` — reads env config, constructs real adapters (initially: `ClickHouseEventWriter`), calls `buildApp(...)`, `.listen()`. First production file outside ports/commands; exists because the acceptance test (via `fastify.inject` against `buildApp`) demands it.
-- [ ] **Outbound adapter:** `api/src/adapters/outbound/clickhouse/ClickHouseEventWriter.ts` — `implements EventWriterPort` against `@clickhouse/client`.
-- [ ] **Parametrized integration test:** `api/test/integration/EventWriter.contract.test.ts` — same test body runs against `InMemoryEventWriter` and `ClickHouseEventWriter` (real ClickHouse from docker-compose). Proves contract parity. **Only place the real ClickHouse is exercised in tests.**
-- [ ] **Slice closeout:** acceptance test green via `buildApp` + in-memory fake. Then: `scripts/tdd green` — verifies `npm run test:fast` + `npm run typecheck` pass before flipping state. Audit log records `tdd_green {tests: passed, typecheck: passed}`. Re-locks `api/src/**` until Slice 2 starts.
+- [x] **Acceptance test (RED):** `api/test/acceptance/ingest.test.ts` — `fastify.inject` `POST /events`, expect **201**, assert via `InMemoryEventWriter` fake (under `api/test/fakes/InMemoryEventWriter.ts`, public `writes` array, `implements EventWriterPort`). Each test constructs its own `buildApp({ eventWriter })`.
+- [x] **`scripts/tdd red api/test/acceptance/ingest.test.ts`** — confirmed failure (composition didn't exist), flipped state.
+- [x] **Define port:** `api/src/events/application/ports/EventWriterPort.ts` — TS interface only.
+- [x] **Define command + handler:** `api/src/events/application/commands/IngestEventCommand.ts`, `api/src/events/application/commands/IngestEventHandler.ts`. Handler depends on `EventWriterPort` via constructor injection. **No application unit test** (per testing-strategy memory).
+- [x] **Inbound adapter:** `api/src/events/adapters/inbound/http/events.ts` — Fastify route, builds command, calls handler, returns 201.
+- [x] **Composition factory:** `api/src/composition.ts` exports `buildApp({ eventWriter })`. Slice-1-scoped Deps; Slice 2 extends with `eventReader`.
+- [x] **Production entry point:** `api/src/server.ts` — reads env config (`CLICKHOUSE_URL`, `CLICKHOUSE_USER`, `CLICKHOUSE_PASSWORD`, `PORT`), constructs `ClickHouseEventWriter`, calls `buildApp`, `.listen()`.
+- [x] **Outbound adapter:** `api/src/events/adapters/outbound/clickhouse/ClickHouseEventWriter.ts` — `implements EventWriterPort` against `@clickhouse/client` (JSONEachRow insert + `formatDateTime64` helper).
+- [x] **Parametrized integration test:** `api/test/integration/EventWriter.contract.test.ts` — same test body runs against `InMemoryEventWriter` and `ClickHouseEventWriter` (real ClickHouse from docker-compose). 4/4 green.
+- [x] **Slice closeout via `scripts/tdd green`** — `npm run test:fast` + `npm run typecheck` both pass; state re-locked.
+- [x] **Refactor:** moved subtrees into `api/src/events/` aggregate folder (per `feedback-aggregates` memory). Verified by full test re-run + tdd green.
 
 ### Slice 2 — Read events back (outside-in)
 
 - [ ] **Acceptance test (RED):** write `api/test/acceptance/read-events.test.ts` — `fastify.inject` `GET /users/:user_id/events`, expect 200 + JSON list. **Hermetic** — the test seeds an `InMemoryEventReader` fake (under `api/test/fakes/InMemoryEventReader.ts`, `implements EventReaderPort`) with the events it wants to read back. Does NOT depend on Slice 1's writer; the CQRS boundary stays clean.
 - [ ] **Confirm test fails for the right reason.** Then: `scripts/tdd red api/test/acceptance/read-events.test.ts`.
-- [ ] **Define port:** `api/src/application/ports/EventReaderPort.ts` — TS interface, **separate from `EventWriterPort`** per CQRS. Reader and writer never share an interface.
-- [ ] **Define query + handler:** `api/src/application/queries/GetUserEventsQuery.ts`, `api/src/application/queries/GetUserEventsHandler.ts`. Handler depends on `EventReaderPort`. No application unit test.
-- [ ] **Inbound adapter:** `api/src/adapters/inbound/http/users.ts` (or extend existing route file) — Fastify route for `GET /users/:user_id/events`. Same content-negotiation-aware presenter pattern as Slice 1, returning JSON now; HTML adapter is added in Phase 1.5 against the same handler.
+- [ ] **Define port:** `api/src/events/application/ports/EventReaderPort.ts` — TS interface, **separate from `EventWriterPort`** per CQRS. Reader and writer never share an interface.
+- [ ] **Define query + handler:** `api/src/events/application/queries/GetUserEventsQuery.ts`, `api/src/events/application/queries/GetUserEventsHandler.ts`. Handler depends on `EventReaderPort`. No application unit test.
+- [ ] **Inbound adapter:** extend `api/src/events/adapters/inbound/http/events.ts` (or add a sibling) — Fastify route for `GET /users/:user_id/events`. Same content-negotiation-aware presenter pattern as Slice 1, returning JSON now; HTML adapter is added in Phase 1.5 against the same handler.
 - [ ] **Composition factory update:** extend `buildApp({ eventWriter, eventReader })` in `api/src/composition.ts` to wire the reader into the route. **Atomic step** — composition wiring isn't a tail clause on the adapter bullet.
-- [ ] **Outbound adapter:** `api/src/adapters/outbound/clickhouse/ClickHouseEventReader.ts` — `implements EventReaderPort` against `@clickhouse/client`.
+- [ ] **Outbound adapter:** `api/src/events/adapters/outbound/clickhouse/ClickHouseEventReader.ts` — `implements EventReaderPort` against `@clickhouse/client`.
 - [ ] **Production wiring:** `api/src/server.ts` constructs `ClickHouseEventReader` and passes both adapters to `buildApp`.
 - [ ] **Parametrized integration test:** `api/test/integration/EventReader.contract.test.ts` — same test body against `InMemoryEventReader` and `ClickHouseEventReader`. Proves contract parity.
 - [ ] **Slice closeout:** `scripts/tdd green` verifies and flips state. **Walking Skeleton ends green here** — full hex stack proven for both write and read paths.

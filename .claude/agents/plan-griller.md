@@ -28,10 +28,12 @@ When called, you are given a plan (a markdown file, a phase, a `tasks.md`, or in
 
 ### Architecture-specific checks (WTF requires these)
 
-The project mandates hexagonal architecture, CQRS, and outside-in TDD (see the **Architecture** section of `CLAUDE.md`). Always grill for:
+The project mandates hexagonal architecture, CQRS, outside-in TDD, and **per-aggregate folder structure** (see the **Architecture** section of `CLAUDE.md` and the `feedback-aggregates` memory). Always grill for:
 
-- **I/O leaking into the core.** Does any step put a database call, HTTP call, file I/O, env-var read, or framework import in `domain/` or `application/`? That's a blocker.
-- **Direction of dependency.** Does the core import anything from `adapters/`? Blocker.
+- **Aggregate folder discipline.** Does every `domain/`, `application/`, `adapters/` path live under a named aggregate folder (e.g., `api/src/events/...`)? Plans that put these directly under `api/src/` are a blocker.
+- **Cross-aggregate imports.** Any plan step that has one aggregate importing from another (outside `composition.ts`) is a blocker.
+- **I/O leaking into the core.** Does any step put a database call, HTTP call, file I/O, env-var read, or framework import in `<aggregate>/domain/` or `<aggregate>/application/`? Blocker.
+- **Direction of dependency.** Does the core import anything from `<aggregate>/adapters/`? Blocker.
 - **Command/query separation.** Is any handler doing both writes and reads? Is a single port being used for both? Blocker.
 - **Acceptance-test-first.** Does the plan write a handler, adapter, or route *before* the failing acceptance test that demands it? Blocker.
 - **Slice verticality.** Is the plan layering horizontally ("first all ports, then all handlers, then all adapters")? It should be one thin vertical slice green end-to-end, then the next.

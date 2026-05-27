@@ -81,4 +81,19 @@ offset (offset is O(n) in ClickHouse). Return is `Event[]`, no total count —
 - **Schema auto-load:** `./clickhouse/init/` mounted to `/docker-entrypoint-initdb.d` (read-only). ClickHouse runs all `.sql` files there on first boot.
 - **Persistent volume:** `clickhouse-data` named volume → data survives container restart.
 - **`api` service in compose but not yet buildable.** The Dockerfile references `dist/server.js` which doesn't exist until Slice 1. Smoke-test path during Infrastructure phase is `docker compose up -d clickhouse` only. Once Slice 1 lands, the full stack starts together.
-- **Smoke test pending Docker daemon.** Could not verify the schema loads on first boot because Docker Desktop daemon wasn't running at the time of Infrastructure block completion. Verification queued — see `progress.md`.
+
+## 2026-05-27 — Slice 1 friction logged
+
+- **ClickHouse 24.x `default` user is localhost-only by default.** The shipped image installs `/etc/clickhouse-server/users.d/default-user.xml` restricting `default` to `127.0.0.1`/`::1` from *inside the container*. Connections through the Docker port mapping (host → bridge → container) come from the bridge gateway IP and are denied. Worked from `docker exec clickhouse-client` (running inside the container) but failed from `@clickhouse/client` on the host.
+- **Fix:** added a dedicated `wtf` user via `clickhouse/users.d/wtf-user.xml`, mounted as a single-file volume into `/etc/clickhouse-server/users.d/`. Password `wtf` for local dev (documented in `.env.example` as "change for non-local deployments"). `default` stays locked down.
+- **Mounting strategy:** mounted the user file individually (`./clickhouse/users.d/wtf-user.xml:/etc/clickhouse-server/users.d/wtf-user.xml:ro`) rather than the whole directory, to preserve the shipped `default-user.xml`.
+- **`docker compose restart` doesn't pick up new volume mounts.** `restart` just SIGHUPs the container with the existing config. Had to `docker compose down && docker compose up -d` to recreate. Worth knowing for any future compose change that adds/changes mounts.
+- **DateTime64 round-trip via `@clickhouse/client` JSONEachRow** needs `'YYYY-MM-DD HH:MM:SS.sss'` string format (not ISO). The adapter has a `formatDateTime64()` helper that strips the `T` and `Z`. The integration test reverses it on read. Brittle — replace with `Date` typed inputs if/when the client supports it natively.
+
+## 2026-05-27 — Aggregate folder restructure
+
+- Mid-Slice-1 (post-closeout), realized the `api/src/` hex layout was missing the **aggregate** level. Original layout put `domain/application/adapters` directly under `api/src/`. Refactored to `api/src/events/{domain,application,adapters}/` so that adding a future `users/` aggregate is a sibling, not a restructure.
+- Saved as `feedback-aggregates` memory. Updated CLAUDE.md (Architecture + Layout), plan.md (Slice 1 done-list + Slice 2 paths), `code-reviewer` + `plan-griller` + `clickhouse-expert` sub-agents (cross-aggregate import is a blocker; composition is the only allowed multi-aggregate importer).
+- Cross-aggregate query projections (e.g., the future Funnels/Segmentation queries) live under the **events** aggregate as queries — they're not aggregates themselves. Codified in the memory.
+- **Refactor handled via `scripts/tdd unlock "refactor: per-aggregate folder structure"`.** No new behavior, but `api/src/**` had to be touched while state was GREEN. UNLOCK + reason was the right primitive; once moves + import updates were done, re-ran `scripts/tdd green` which re-verified tests + typecheck before flipping back. Audit log captures both events.
+- Open question: where do *cross-cutting HTTP assets* (HTMX, design-system CSS) live in Phase 1.5? Not an aggregate. Likely `api/src/http/static/` or `api/src/shared/http/`. Deferred to Phase 1.5 design-system work.

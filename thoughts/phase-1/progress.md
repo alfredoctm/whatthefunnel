@@ -21,3 +21,16 @@
 - All 3 bloom-filter skip indexes present (`idx_user_id`, `idx_prop_keys`, `idx_prop_vals`).
 - Smoke insert + select round-trips (event with Map properties, server-generated `event_id` UUID, server-stamped `ingested_at`). Test row truncated after.
 - ClickHouse left running for Slice 1 (warm start).
+
+### Slice 1 — Ingest one event (green)
+- Acceptance test (`api/test/acceptance/ingest.test.ts`) flips through RED → GREEN. Hits `POST /events` via `fastify.inject`, asserts 201 + that the event landed in the `InMemoryEventWriter` fake's `writes` array.
+- Domain `Event` (api/src/domain/Event.ts) — 6 readonly fields matching the schema.
+- Port `EventWriterPort` (api/src/application/ports/EventWriterPort.ts) — single-method TS interface.
+- Command + handler: `IngestEventCommand` + `IngestEventHandler`. Handler generates `eventId` (UUID) and `ingestedAt` (Date.now). Acceptance test covers the handler's behavior; no separate unit test (per testing strategy).
+- Inbound HTTP adapter: `registerEventsRoutes(app, ingestHandler)`. Takes the handler directly — does NOT import composition's `Deps` type.
+- Composition: `buildApp({ eventWriter })` factory — Slice 1's `Deps` only has `eventWriter`; Slice 2 will extend it with `eventReader` (deviation from the plan, which speculatively listed both — corrected here to honor vertical slicing).
+- Production entry: `api/src/server.ts` reads env (`CLICKHOUSE_URL`, `CLICKHOUSE_USER`, `CLICKHOUSE_PASSWORD`, `PORT`), constructs `ClickHouseEventWriter` against `@clickhouse/client`, calls `buildApp`, listens.
+- Outbound adapter: `ClickHouseEventWriter` implements `EventWriterPort`. Insert via `JSONEachRow` with a date-format helper for DateTime64.
+- Parametrized integration test: `EventWriter.contract.test.ts` runs the same test body against `InMemoryEventWriter` and `ClickHouseEventWriter`. Both pass. This is the contract-parity guarantee.
+- **Slice closeout via `scripts/tdd green`** — verified `npm run test:fast` (1 acceptance test) + `tsc --noEmit` both pass before flipping state. Audit log: `tdd_green {tests: passed, typecheck: passed}`. `api/src/**` re-locked.
+- **Walking Skeleton half done.** Write path proven end-to-end (HTTP → handler → port → adapter → ClickHouse). Slice 2 (read path) is next.

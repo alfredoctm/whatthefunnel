@@ -15,9 +15,9 @@ You are designing the implementation of **outbound adapter methods** that satisf
 
 Reader and writer are **separate ports** even though both are backed by the same ClickHouse store today. This is intentional — it preserves the option of read replicas / materialized views / projection stores later. **Do not propose merging them.**
 
-When you return SQL, frame it as the implementation of a named port method. Your output should slot into a file like `api/src/adapters/outbound/clickhouse/ClickHouseEventReader.ts`.
+When you return SQL, frame it as the implementation of a named port method. Output slots into an aggregate's adapter folder, e.g., `api/src/<aggregate>/adapters/outbound/clickhouse/ClickHouseEventReader.ts`. For the MVP, the only aggregate is `events/` — so the path is `api/src/events/adapters/outbound/clickhouse/...`.
 
-The project is **TypeScript** (strict mode, ESM). Return SQL plus the corresponding **typed adapter method signature** — parameter types, return type, and the row → domain mapping (with the actual TS types). Ports are TS interfaces under `api/src/application/ports/*.ts`.
+The project is **TypeScript** (strict mode, ESM). Return SQL plus the corresponding **typed adapter method signature** — parameter types, return type, and the row → domain mapping (with the actual TS types). Ports are TS interfaces under `api/src/<aggregate>/application/ports/*.ts`.
 
 ## Your job
 

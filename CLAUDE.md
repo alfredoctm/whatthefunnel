@@ -28,16 +28,20 @@ Target structure as the project grows. The `api/` tree follows hexagonal
 ```
 api/
   src/
-    domain/                  Pure value objects (Event, UserId, …). No I/O.
-    application/
-      commands/              Command + handler pairs (writes)
-      queries/               Query + handler pairs (reads)
-      ports/                 TS interfaces (EventWriterPort, EventReaderPort, …)
-    adapters/
-      inbound/http/          Fastify routes calling handlers
-      outbound/clickhouse/   ClickHouse implementations of ports
-    composition.ts           buildApp({ eventWriter, eventReader }) factory
-    server.ts                Boots Fastify (reads env, constructs real adapters, calls buildApp)
+    events/                  AGGREGATE — own domain, ports, handlers, adapters
+      domain/                Pure value objects (Event). No I/O.
+      application/
+        commands/            Command + handler pairs (writes)
+        queries/             Query + handler pairs (reads)
+        ports/               TS interfaces (EventWriterPort, EventReaderPort, …)
+      adapters/
+        inbound/http/        Fastify routes calling handlers
+        outbound/clickhouse/ ClickHouse implementations of ports
+    users/                   (future aggregate — same shape)
+    composition.ts           buildApp({ ... }) factory — only file that imports
+                             across aggregates
+    server.ts                Boots Fastify (reads env, constructs real adapters,
+                             calls buildApp)
   test/
     acceptance/              Outside-in entry points (fastify.inject + in-memory fakes)
     unit/domain/             Domain unit tests only (no application-layer units)
@@ -79,11 +83,18 @@ Once a `run` skill exists (Phase 1), prefer invoking it over raw docker commands
 
 These are non-negotiable. Do not propose dropping them as "premature complexity for an MVP" — they are stated requirements.
 
+### Aggregate folders
+
+- **Each aggregate gets its own folder directly under `api/src/`** (e.g., `api/src/events/`). Inside, the hexagonal layout (`domain/`, `application/`, `adapters/`) repeats.
+- **Cross-aggregate imports are forbidden** outside `composition.ts`. `events/` may not import from `users/`, and vice versa. `composition.ts` (and `server.ts`) are the only files allowed to import across aggregate boundaries — that's their job.
+- **Query projections (e.g., Segmentation, Funnels) are NOT aggregates.** They're read-side patterns living under `events/application/queries/`.
+- See `feedback-aggregates` memory for the full rule.
+
 ### Hexagonal (ports & adapters)
 
-- **Pure core, dirty edges.** `domain/` and `application/` have no I/O and no framework imports. All I/O crosses an explicit port (interface) implemented by an adapter under `adapters/`.
+- **Pure core, dirty edges.** `domain/` and `application/` (inside each aggregate folder) have no I/O and no framework imports. All I/O crosses an explicit port (interface) implemented by an adapter under the same aggregate's `adapters/`.
 - **Direction of dependency points inward.** Adapters import from the core; the core never imports from adapters.
-- **Wiring lives in `composition.js`.** It is the only place that knows the concrete adapter classes. Handlers receive ports via constructor injection.
+- **Wiring lives in `composition.ts`.** It is the only place that knows the concrete adapter classes — and the only place allowed to import across aggregates.
 
 ### CQRS — commands and queries are separate
 

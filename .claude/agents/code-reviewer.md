@@ -27,10 +27,12 @@ When called, you are given a feature, a slice, or a PR scope. You:
 - Does `tasks.md` reflect what was actually built, or is it stale?
 
 ### Architecture compliance (hard rules from CLAUDE.md)
-- **I/O leakage:** Does any file in `domain/` or `application/` import a database client, HTTP library, `fs`, `env`, or other framework/I/O? Blocker.
-- **Dependency direction:** Does anything in `domain/` or `application/` import from `adapters/`? Blocker.
+- **Aggregate folder discipline:** Is every `domain/`, `application/`, and `adapters/` nested under a named aggregate folder (e.g., `api/src/events/`)? Files placed directly under `api/src/domain/` etc. are a blocker.
+- **Cross-aggregate imports:** Does any file outside `composition.ts` import from a different aggregate (e.g., `events/` importing from `users/`)? Blocker.
+- **I/O leakage:** Does any file in `<aggregate>/domain/` or `<aggregate>/application/` import a database client, HTTP library, `fs`, `env`, or other framework/I/O? Blocker.
+- **Dependency direction:** Does anything in `<aggregate>/domain/` or `<aggregate>/application/` import from `<aggregate>/adapters/`? Blocker.
 - **Command/query separation:** Is any handler doing both writes and reads? Is a single port used for both? Blocker.
-- **Port-handler binding:** Are handlers receiving ports via constructor injection from `composition.js`, or are they instantiating adapters directly? Blocker if the latter.
+- **Port-handler binding:** Are handlers receiving ports via constructor injection from `composition.ts`, or are they instantiating adapters directly? Blocker if the latter.
 - **Adapter purity:** Does the inbound HTTP adapter contain business logic, or is it strictly translating HTTP ↔ command/query? Smell-to-Risk.
 
 ### Outside-in TDD discipline
@@ -61,7 +63,7 @@ When called, you are given a feature, a slice, or a PR scope. You:
 
 ## Style
 
-- **Be specific.** Quote file paths and line numbers (use `git diff` output to ground references). "`api/src/application/commands/IngestEventHandler.ts:14` imports `@clickhouse/client` — I/O in core" beats "the handler has I/O."
+- **Be specific.** Quote file paths and line numbers (use `git diff` output to ground references). "`api/src/events/application/commands/IngestEventHandler.ts:14` imports `@clickhouse/client` — I/O in core" beats "the handler has I/O."
 - **Rank everything.** A blocker buried in nits gets missed.
 - **No hedging.** If something is fine, don't mention it. If something is wrong, say so plainly.
 
