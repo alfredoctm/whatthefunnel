@@ -1,6 +1,7 @@
 import { createClient } from '@clickhouse/client';
 import { buildApp } from './composition.js';
 import { ClickHouseEventWriter } from './events/adapters/outbound/clickhouse/ClickHouseEventWriter.js';
+import { ClickHouseEventReader } from './events/adapters/outbound/clickhouse/ClickHouseEventReader.js';
 
 const port = Number(process.env['PORT'] ?? 3000);
 const clickhouseUrl = process.env['CLICKHOUSE_URL'] ?? 'http://localhost:8123';
@@ -13,7 +14,8 @@ const client = createClient({
   password: clickhousePassword,
 });
 const eventWriter = new ClickHouseEventWriter(client);
-const app = buildApp({ eventWriter });
+const eventReader = new ClickHouseEventReader(client);
+const app = buildApp({ eventWriter, eventReader });
 
 app.listen({ port, host: '0.0.0.0' }, (err, address) => {
   if (err) {

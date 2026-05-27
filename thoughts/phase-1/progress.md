@@ -34,3 +34,16 @@
 - Parametrized integration test: `EventWriter.contract.test.ts` runs the same test body against `InMemoryEventWriter` and `ClickHouseEventWriter`. Both pass. This is the contract-parity guarantee.
 - **Slice closeout via `scripts/tdd green`** — verified `npm run test:fast` (1 acceptance test) + `tsc --noEmit` both pass before flipping state. Audit log: `tdd_green {tests: passed, typecheck: passed}`. `api/src/**` re-locked.
 - **Walking Skeleton half done.** Write path proven end-to-end (HTTP → handler → port → adapter → ClickHouse). Slice 2 (read path) is next.
+
+### Slice 2 — Read events back (green)
+- Acceptance test (`api/test/acceptance/read-events.test.ts`) — 3 tests: order, limit, `before` cursor. Hermetic — seeds `InMemoryEventReader` directly; doesn't depend on the writer.
+- `InMemoryEventReader` (`api/test/fakes/InMemoryEventReader.ts`) — `implements EventReaderPort`. Optional seed-events constructor; `findByUser` filters by user, applies `before`, sorts DESC, slices to limit.
+- Port: `EventReaderPort` — separate interface from writer per CQRS. Signature `findByUser(userId, { limit, before? })`.
+- Query + handler: `GetUserEventsQuery` / `GetUserEventsHandler`. Handler is thin (per testing strategy, no unit test for it).
+- Inbound HTTP adapter: extended `events.ts` route file with `GET /users/:user_id/events`. Signature of `registerEventsRoutes` changed to take a `{ ingest, getUserEvents }` handlers object. Slice 1's test updated to pass empty reader.
+- Composition: Deps now requires both ports. `buildApp({ eventWriter, eventReader })`.
+- Outbound adapter: `ClickHouseEventReader` — parameterized SQL with conditional `before` clause; row-to-domain mapping mirrors the writer's DateTime64 format helper.
+- Production wiring: `server.ts` constructs both ClickHouse adapters and passes them.
+- Parametrized integration test: `EventReader.contract.test.ts` — 4 tests × 2 implementations = 8 passing.
+- Slice closeout via `scripts/tdd green` — passing acceptance (4 tests) + typecheck. Audit log: `tdd_green {tests: passed, typecheck: passed}`.
+- **Walking Skeleton complete.** Both write and read paths verified by parametrized contract tests against real ClickHouse + in-memory fake. 12/12 integration green, 4/4 acceptance green.
