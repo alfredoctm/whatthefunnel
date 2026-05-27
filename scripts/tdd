@@ -6,13 +6,19 @@
 #
 # Commands:
 #   scripts/tdd red <test-id>           — declare RED phase (failing test exists)
-#   scripts/tdd green                   — declare GREEN phase (all tests pass)
-#   scripts/tdd unlock "<reason>"       — explicit override; required reason
+#   scripts/tdd green                   — verify slice (npm run test:fast + typecheck),
+#                                          then flip to GREEN. Refuses if either fails.
+#                                          Bootstraps silently if api/package.json doesn't exist yet.
+#   scripts/tdd unlock "<reason>"       — explicit override (audited)
 #   scripts/tdd status                  — print current state
 #
-# In Phase 1+, `red` and `green` should be enhanced to actually run the test
-# suite and verify the claim before writing state. For Phase 0 they write
-# state directly — the audit log captures the transition either way.
+# `green` requires api/package.json to define two npm scripts:
+#   "test:fast": runs unit + acceptance tiers (NOT integration)
+#   "typecheck": runs `tsc --noEmit`
+# These are added in Phase 1's Tooling decisions block.
+#
+# `red` writes state directly without verification — it's a claim about a failing
+# test that the developer/AI just observed. The hard gate is `green`.
 
 set -euo pipefail
 
@@ -32,10 +38,55 @@ case "$CMD" in
     echo "You may now edit api/src/**."
     ;;
   green)
+    PKG="$REPO_ROOT/api/package.json"
+    NODE_MODULES="$REPO_ROOT/api/node_modules"
+    SRC_DIR="$REPO_ROOT/api/src"
+
+    # Bootstrap: before package.json / node_modules exist, OR before the first
+    # .ts file lands in api/src/, there's nothing to verify. Allow flipping to
+    # GREEN and audit the bootstrap. Once production code exists, every flip
+    # is a real test+typecheck gate.
+    if [ ! -f "$PKG" ] || [ ! -d "$NODE_MODULES" ]; then
+      mkdir -p "$(dirname "$STATE_FILE")"
+      printf 'GREEN\n' > "$STATE_FILE"
+      "$AUDIT" tdd_green '{"bootstrap": true, "note": "no api/package.json or node_modules — verification skipped"}'
+      echo "TDD state: GREEN  (bootstrap — verification skipped, no api/package.json yet)"
+      echo "api/src/** is locked again — write a new failing test to unlock."
+      exit 0
+    fi
+
+    if [ ! -d "$SRC_DIR" ] || [ -z "$(find "$SRC_DIR" -type f -name '*.ts' 2>/dev/null | head -n 1)" ]; then
+      mkdir -p "$(dirname "$STATE_FILE")"
+      printf 'GREEN\n' > "$STATE_FILE"
+      "$AUDIT" tdd_green '{"bootstrap": true, "note": "no .ts files under api/src/ yet — verification skipped"}'
+      echo "TDD state: GREEN  (bootstrap — verification skipped, no api/src/**/*.ts yet)"
+      echo "api/src/** is locked again — write a new failing test to unlock."
+      exit 0
+    fi
+
+    # Real gate: tests + typecheck must pass before state flips to GREEN.
+    echo "Running npm run test:fast (unit + acceptance tiers)..."
+    if ! (cd "$REPO_ROOT/api" && npm run --silent test:fast); then
+      echo "" >&2
+      echo "TDD green: REFUSED — tests failed. State unchanged." >&2
+      echo "Fix the failing tests, or: scripts/tdd unlock \"<reason>\"" >&2
+      "$AUDIT" tdd_green_refused '{"reason": "tests failed"}'
+      exit 1
+    fi
+
+    echo "Running npm run typecheck (tsc --noEmit)..."
+    if ! (cd "$REPO_ROOT/api" && npm run --silent typecheck); then
+      echo "" >&2
+      echo "TDD green: REFUSED — type errors. State unchanged." >&2
+      echo "Fix the type errors, or: scripts/tdd unlock \"<reason>\"" >&2
+      "$AUDIT" tdd_green_refused '{"reason": "typecheck failed"}'
+      exit 1
+    fi
+
     mkdir -p "$(dirname "$STATE_FILE")"
     printf 'GREEN\n' > "$STATE_FILE"
-    "$AUDIT" tdd_green '{}'
-    echo "TDD state: GREEN"
+    "$AUDIT" tdd_green '{"tests": "passed", "typecheck": "passed"}'
+    echo "TDD state: GREEN  (tests + typecheck passed)"
     echo "api/src/** is locked again — write a new failing test to unlock."
     ;;
   unlock)

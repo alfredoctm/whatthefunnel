@@ -40,48 +40,100 @@ Before any app code, set up the automation surface.
 
 Goal: an event flows from `curl` → Fastify → command handler → ClickHouse,
 then `curl` GET → query handler → ClickHouse → JSON back. Thinnest possible
-end-to-end path through the **full hexagonal stack** (so the architecture is
-proven, not just sketched). No features beyond ingest + read-back.
+end-to-end path through the **full hexagonal stack** — proven (not sketched)
+by parametrized contract tests showing the real ClickHouse adapter and the
+in-memory fake satisfy the same port interface. No features beyond ingest +
+read-back.
 
-Built **outside-in**: every code step is preceded by a failing acceptance test.
+Built **outside-in**: every production-code step is preceded by a failing
+acceptance test; every slice closes through `scripts/tdd green` (which
+verifies tests + typecheck before flipping state).
 
 ### Tooling decisions (do first)
 
-- [ ] **Pick test framework + mocking style** — recommend `vitest` + `fastify.inject()` + hand-rolled in-memory port fakes. Lock in `package.json`.
-- [ ] **Grill the Phase 1 plan** — run `plan-griller` against this section before writing any code
+- [x] **Grill the Phase 1 plan** — `plan-griller` run; findings applied in this section.
+- [ ] **TypeScript setup** (see `feedback-typescript` memory):
+  - TypeScript 5.x, **strict mode all flags on**, **ESM** (`"type": "module"` in `api/package.json`).
+  - `api/tsconfig.json` with `strict: true`, `module: "ESNext"`, `target: "ES2022"`, `moduleResolution: "Bundler"`, `noEmit: true` for dev, separate `tsconfig.build.json` for prod `tsc --build` → `dist/`.
+  - Dev runner: `tsx watch`. Prod: `tsc --build`, Docker copies `dist/` and runs Node on JS.
+  - All `.ts` files. Ports are TS interfaces. Fakes use explicit `implements`.
+  - npm scripts in `api/package.json`: `"dev": "tsx watch src/server.ts"`, `"build": "tsc --build tsconfig.build.json"`, `"typecheck": "tsc --noEmit"`.
+- [ ] **Test framework + strategy** (see `feedback-testing-strategy` memory):
+  - **Framework:** Jest + `ts-jest` preset (ESM mode) + `fastify.inject()`. Lock in `api/package.json`. If ts-jest ESM friction surfaces, fall back to `swc-jest` (record in `thoughts/phase-1/findings.md`).
+  - npm scripts: `"test:fast": "jest --testPathPattern='test/(unit|acceptance)'"`, `"test:integration": "jest --testPathPattern='test/integration'"`, `"test": "npm run test:fast && npm run test:integration"`.
+  - **Layered strategy:**
+    - **Acceptance** (`api/test/acceptance/`) — HTTP boundary via `fastify.inject`, app composed with in-memory port fakes. Transitively covers the application layer.
+    - **Domain unit** (`api/test/unit/domain/`) — only the `domain/` layer. Pure, no mocks.
+    - **NO application-layer unit tests.** Handlers / commands / queries are covered by acceptance tests; unit-testing them is forbidden.
+    - **Adapter integration** (`api/test/integration/`) — parametrized: same test body runs against real adapter AND in-memory fake. Proves contract parity.
+    - **Mocks** = only the in-memory port fakes (under `api/test/fakes/`). No `jest.mock`, no module mocking, no spies on collaborators.
+    - Fixtures OK where they reduce repetition without hiding intent.
+- [ ] **Pick linter + formatter configs** — `eslint:recommended` + `@typescript-eslint/recommended` (TS-aware lint) + Prettier defaults. Add `api/.eslintrc.json` + `.prettierrc.json` (repo root). Required before the format-on-write / lint-on-write hooks land in the Claude harness expansion below.
+- [ ] **Wire `scripts/tdd green` into npm scripts.** Already calls `npm run test:fast` + `npm run typecheck`. Once these exist, `scripts/tdd green` becomes a real gate (it's a bootstrap no-op until then).
 
 ### Infrastructure
 
-- [ ] **`docker-compose.yml`** — `clickhouse` + `api` services, one shared network
-- [ ] **`clickhouse/init/01_events.sql`** — `events` table (invoke `clickhouse-expert`; ask it for the writer-port and reader-port contracts in the same response)
-- [ ] **`api/package.json` + `api/Dockerfile`** + minimal `api/src/server.js` that boots Fastify
+- [ ] **`.nvmrc`** + `"engines": { "node": ">=20.x" }` in `package.json` — pin Node version for reproducibility (Docker + local dev).
+- [ ] **`docker-compose.yml`** — `clickhouse` + `api` services, one shared network. `clickhouse` service has a **healthcheck** (HTTP `GET /ping` returning 200) so `api` doesn't start against a not-yet-ready store; `api` `depends_on: { clickhouse: { condition: service_healthy } }`.
+- [ ] **`clickhouse/init/01_events.sql`** — `events` table schema. Invoke `clickhouse-expert` for schema only (ORDER BY, PARTITION BY, codecs, engine choice). Port contracts are application-layer and get defined when the handler that needs them is written (Slice 1 / Slice 2) — do NOT ask clickhouse-expert to design ports.
+- [ ] **`api/package.json` + `api/Dockerfile` + `api/tsconfig.json` + `api/tsconfig.build.json`** — package metadata, dependencies (`fastify`, `@clickhouse/client`, `typescript`, `tsx`, `@types/node`, `jest`, `ts-jest`, `@types/jest`, `eslint`, `@typescript-eslint/parser`, `@typescript-eslint/eslint-plugin`, `prettier`). Multi-stage Dockerfile: build stage runs `tsc --build`, runtime stage copies `dist/` + `node_modules` (prod only). **No `server.ts` yet** — that's production code and lives inside Slice 1, where the acceptance test demands it.
+- [ ] **`.env.example`** — declare config surface: `CLICKHOUSE_URL`, `PORT`, `LOG_LEVEL`. Document defaults. Real `.env` is gitignored.
 
 ### Slice 1 — Ingest one event (outside-in)
 
-- [ ] **Acceptance test:** `api/test/acceptance/ingest.test.js` — `fastify.inject` `POST /events` with a valid body, expect 202 and assert via an in-memory `EventWriterPort` fake that the event was written.
-- [ ] **Define port:** `api/src/application/ports/EventWriterPort.js` (interface only)
-- [ ] **Define command + handler:** `IngestEventCommand`, `IngestEventHandler` — handler depends on `EventWriterPort`. Unit-test the handler with the fake.
-- [ ] **Inbound adapter:** `api/src/adapters/inbound/http/events.js` — Fastify route that builds the command and calls the handler.
-- [ ] **Outbound adapter:** `api/src/adapters/outbound/clickhouse/ClickHouseEventWriter.js` — implements `EventWriterPort`.
-- [ ] **Composition:** `api/src/composition.js` wires the real adapter into the handler. Acceptance test now green against a fake; a separate integration test green against the real ClickHouse from docker-compose.
+- [ ] **Acceptance test (RED):** write `api/test/acceptance/ingest.test.ts` — `fastify.inject` `POST /events` with a valid body, expect **201**, assert via an `InMemoryEventWriter` fake (under `api/test/fakes/InMemoryEventWriter.ts`, with a public `writes` array for observation, `implements EventWriterPort`) that the event was written. Each test constructs its own `buildApp({ eventWriter, eventReader })` — no shared module state.
+- [ ] **Confirm test fails for the right reason** (no route, no handler, no port yet). Then: `scripts/tdd red api/test/acceptance/ingest.test.ts` — flips TDD-guard so the next bullets can touch `api/src/**`.
+- [ ] **Define port:** `api/src/application/ports/EventWriterPort.ts` — TS interface only (the contract the handler depends on).
+- [ ] **Define command + handler:** `api/src/application/commands/IngestEventCommand.ts`, `api/src/application/commands/IngestEventHandler.ts`. Handler depends on `EventWriterPort` via constructor injection (typed). **No unit test for the handler** — acceptance test covers it (per testing-strategy memory).
+- [ ] **Inbound adapter:** `api/src/adapters/inbound/http/events.ts` — Fastify route, builds the command, calls the handler, returns 201. Content-type agnostic where possible — keep JSON serialization in a thin presenter so Phase 1.5 can add HTML without rewriting the route.
+- [ ] **Composition factory:** `api/src/composition.ts` exports `buildApp({ eventWriter, eventReader }: Deps): FastifyInstance`. Only place that knows concrete adapter classes. Tests call `buildApp` with fakes; prod calls it with real adapters.
+- [ ] **Production entry point:** `api/src/server.ts` — reads env config, constructs real adapters (initially: `ClickHouseEventWriter`), calls `buildApp(...)`, `.listen()`. First production file outside ports/commands; exists because the acceptance test (via `fastify.inject` against `buildApp`) demands it.
+- [ ] **Outbound adapter:** `api/src/adapters/outbound/clickhouse/ClickHouseEventWriter.ts` — `implements EventWriterPort` against `@clickhouse/client`.
+- [ ] **Parametrized integration test:** `api/test/integration/EventWriter.contract.test.ts` — same test body runs against `InMemoryEventWriter` and `ClickHouseEventWriter` (real ClickHouse from docker-compose). Proves contract parity. **Only place the real ClickHouse is exercised in tests.**
+- [ ] **Slice closeout:** acceptance test green via `buildApp` + in-memory fake. Then: `scripts/tdd green` — verifies `npm run test:fast` + `npm run typecheck` pass before flipping state. Audit log records `tdd_green {tests: passed, typecheck: passed}`. Re-locks `api/src/**` until Slice 2 starts.
 
 ### Slice 2 — Read events back (outside-in)
 
-- [ ] **Acceptance test:** `GET /users/:user_id/events` returns the events written in Slice 1 (assert via an in-memory `EventReaderPort` fake).
-- [ ] **Define port:** `EventReaderPort` (separate from writer per CQRS).
-- [ ] **Define query + handler:** `GetUserEventsQuery`, `GetUserEventsHandler`.
-- [ ] **Inbound adapter:** Fastify route for the GET.
-- [ ] **Outbound adapter:** `ClickHouseEventReader` implements `EventReaderPort`.
-- [ ] **Wire in `composition.js`.** Walking Skeleton ends green here.
+- [ ] **Acceptance test (RED):** write `api/test/acceptance/read-events.test.ts` — `fastify.inject` `GET /users/:user_id/events`, expect 200 + JSON list. **Hermetic** — the test seeds an `InMemoryEventReader` fake (under `api/test/fakes/InMemoryEventReader.ts`, `implements EventReaderPort`) with the events it wants to read back. Does NOT depend on Slice 1's writer; the CQRS boundary stays clean.
+- [ ] **Confirm test fails for the right reason.** Then: `scripts/tdd red api/test/acceptance/read-events.test.ts`.
+- [ ] **Define port:** `api/src/application/ports/EventReaderPort.ts` — TS interface, **separate from `EventWriterPort`** per CQRS. Reader and writer never share an interface.
+- [ ] **Define query + handler:** `api/src/application/queries/GetUserEventsQuery.ts`, `api/src/application/queries/GetUserEventsHandler.ts`. Handler depends on `EventReaderPort`. No application unit test.
+- [ ] **Inbound adapter:** `api/src/adapters/inbound/http/users.ts` (or extend existing route file) — Fastify route for `GET /users/:user_id/events`. Same content-negotiation-aware presenter pattern as Slice 1, returning JSON now; HTML adapter is added in Phase 1.5 against the same handler.
+- [ ] **Composition factory update:** extend `buildApp({ eventWriter, eventReader })` in `api/src/composition.ts` to wire the reader into the route. **Atomic step** — composition wiring isn't a tail clause on the adapter bullet.
+- [ ] **Outbound adapter:** `api/src/adapters/outbound/clickhouse/ClickHouseEventReader.ts` — `implements EventReaderPort` against `@clickhouse/client`.
+- [ ] **Production wiring:** `api/src/server.ts` constructs `ClickHouseEventReader` and passes both adapters to `buildApp`.
+- [ ] **Parametrized integration test:** `api/test/integration/EventReader.contract.test.ts` — same test body against `InMemoryEventReader` and `ClickHouseEventReader`. Proves contract parity.
+- [ ] **Slice closeout:** `scripts/tdd green` verifies and flips state. **Walking Skeleton ends green here** — full hex stack proven for both write and read paths.
 
-### Claude harness expansion
+### Integration tier — invariants
 
-- [ ] **`run` skill** (`.claude/skills/run/`) — start the stack and tail API logs
-- [ ] **`send-event` skill** (`.claude/skills/send-event/`) — fire a synthetic event
-- [ ] **Hook: format-on-write** — `PostToolUse` on Edit/Write of `api/**/*.js` → `prettier --write`
-- [ ] **Hook: lint-on-write** — same matcher, runs `eslint --fix`
-- [ ] **Hook: test-on-commit** — `PreToolUse` matching `git commit` runs `npm test` (unit + acceptance, not the docker integration tier)
-- [ ] **Append `thoughts/phase-1/findings.md`** with anything surprising
+The two slices above each add a parametrized integration test for their port.
+This block defines the tier they share, so neither slice has to re-invent it.
+
+- **Location:** `api/test/integration/<PortName>.contract.test.ts`.
+- **Shape:** export a single `describe` block parametrized over implementations. The same test body runs against the real adapter (e.g., `ClickHouseEventWriter`) and the in-memory fake (`InMemoryEventWriter`). Use `describe.each([...impls])` or equivalent.
+- **What they assert:** the port contract — what every implementation must do. Not the internals of either implementation. If only one implementation passes, that implementation is wrong (or the fake is lying about the contract).
+- **What they don't assert:** HTTP routing, handler orchestration, end-to-end user-visible behavior. Those belong in acceptance tests.
+- **Real-ClickHouse readiness:** test setup waits for the `clickhouse` service to be healthy (`docker compose up -d --wait`, or a per-suite `beforeAll` that polls `GET /ping` until 200). The docker-compose healthcheck (from the Infrastructure block) is what makes `--wait` reliable.
+- **When they run:**
+  - **Locally (developer/AI):** on demand via `npm run test:integration`. Requires `docker compose up -d` first (or the test runner brings the stack up itself).
+  - **`scripts/tdd green` does NOT run integration tests** — only `test:fast` (unit + acceptance). Integration is too heavy to gate every slice.
+  - **CI:** integration runs on every PR (full `npm test`). This is where contract drift gets caught for real.
+- **Fixtures:** the real adapter's test uses a per-suite table reset (DROP / CREATE the relevant table in a test schema, or truncate). No shared state across runs.
+
+## Phase 1 — Harness expansion (post-skeleton)
+
+> Runs **after** the Walking Skeleton is green. Depends on `api/package.json`
+> existing with `prettier`, `eslint`, `typescript`, and `jest` installed
+> (Tooling block above). Wiring these hooks earlier would fire them against
+> non-existent tools.
+
+- [ ] **`run` skill** (`.claude/skills/run/`) — start the stack and tail API logs (`docker compose up -d && docker compose logs -f api`).
+- [ ] **`send-event` skill** (`.claude/skills/send-event/`) — fire a synthetic event via `curl`. Depends on `run` (stack must be up).
+- [ ] **Hook: format-on-write** — `PostToolUse` on `Edit|Write` of `api/**/*.{ts,js,json}` → `npx prettier --write`. Lives in `.claude/settings.json`.
+- [ ] **Hook: lint-on-write** — same matcher (scoped to `api/**/*.ts`) → `npx eslint --fix`.
+- [ ] **Hook: test-on-commit (scoped)** — `PreToolUse` matching `git commit` runs `npm run test:fast` **only if `api/**` files are staged**. Skips full suite for docs-only / config-only / `.claude/`-only commits. Implementation: a small `scripts/hooks/test-on-commit.sh` that checks `git diff --cached --name-only` against `api/**` and exits 0 if no match. Integration tier runs in CI, not on commit.
+- [ ] **Append `thoughts/phase-1/findings.md` AND `thoughts/phase-1/progress.md`** — both files, per Phase 0 pattern. Capture: any TS+Jest+ESM friction (and the swc-jest fallback decision if used), any TDD-guard unlocks and why, any healthcheck quirks.
 
 ## Phase 1.5 — Design System
 

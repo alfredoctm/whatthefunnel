@@ -19,9 +19,11 @@ Full scope and success criteria: [`docs/goals.md`](docs/goals.md).
 
 ## Stack
 
+- **Language:** TypeScript 5.x (strict, ESM)
 - **API:** Node.js + Fastify
 - **Storage:** ClickHouse
 - **Orchestration:** Docker Compose
+- **Tests:** Jest + `ts-jest` + `fastify.inject()`
 
 ## Quickstart
 

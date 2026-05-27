@@ -35,8 +35,13 @@ When called, you are given a feature, a slice, or a PR scope. You:
 
 ### Outside-in TDD discipline
 - **Acceptance-test-first:** Check the audit log. Is there a `tdd_red` event for an acceptance test *before* the production-code commits? If the diff was built via `tdd_unlock`, is the reason in the unlock event acceptable, or was it abused?
-- **Test exercises the code:** Does the acceptance test actually reach the new production code, or is it asserting against the in-memory fake without ever exercising the real adapter integration?
+- **Test exercises the code:** Does the acceptance test actually reach the new production code? Does the parametrized integration test cover both the real adapter AND the in-memory fake (per `feedback-testing-strategy` — never just one)?
+- **No banned test patterns.** Per `feedback-testing-strategy`: no unit tests on the application layer (handlers / commands / queries), no `jest.mock` / module mocking / spies-on-collaborators. The only test doubles are in-memory port fakes under `api/test/fakes/`. Flag violations as **Smell → Blocker** depending on how entrenched.
 - **Coverage of edge cases listed in `design.md`:** Are the edge cases the design called out actually covered by tests?
+
+### Slice closeout (TS + tests gate)
+- **`tdd_green` event in audit log:** The slice's audit log must show a successful `tdd_green` event with `tests: passed, typecheck: passed` — meaning `scripts/tdd green` verified the slice. A `tdd_unlock` close-out (instead of a real `tdd_green`) is a smell; investigate whether the unlock reason justifies it.
+- **TypeScript:** no `any`, no unjustified `// @ts-ignore` / `@ts-expect-error`, no implicit-any leaking through generic parameters. Ports are TS interfaces; fakes use explicit `implements`.
 
 ### Correctness
 - Logic bugs (off-by-one, null handling, wrong operator).
@@ -56,7 +61,7 @@ When called, you are given a feature, a slice, or a PR scope. You:
 
 ## Style
 
-- **Be specific.** Quote file paths and line numbers (use `git diff` output to ground references). "`api/src/application/commands/IngestEventHandler.js:14` imports `pg` — I/O in core" beats "the handler has I/O."
+- **Be specific.** Quote file paths and line numbers (use `git diff` output to ground references). "`api/src/application/commands/IngestEventHandler.ts:14` imports `@clickhouse/client` — I/O in core" beats "the handler has I/O."
 - **Rank everything.** A blocker buried in nits gets missed.
 - **No hedging.** If something is fine, don't mention it. If something is wrong, say so plainly.
 

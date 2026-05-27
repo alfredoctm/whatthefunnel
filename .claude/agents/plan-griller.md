@@ -35,11 +35,23 @@ The project mandates hexagonal architecture, CQRS, and outside-in TDD (see the *
 - **Command/query separation.** Is any handler doing both writes and reads? Is a single port being used for both? Blocker.
 - **Acceptance-test-first.** Does the plan write a handler, adapter, or route *before* the failing acceptance test that demands it? Blocker.
 - **Slice verticality.** Is the plan layering horizontally ("first all ports, then all handlers, then all adapters")? It should be one thin vertical slice green end-to-end, then the next.
-- **Composition wiring.** Is there a step that wires the new adapter into `composition.js`? If not, the slice can't ship.
+- **Composition wiring.** Is there a step that wires the new adapter into `composition.ts` (via the `buildApp({ ... })` factory)? If not, the slice can't ship.
+
+### Testing-strategy checks (per `feedback-testing-strategy` memory)
+
+- **No application-layer unit tests.** Plans that propose unit-testing a handler, command, or query are violating the strategy. Blocker.
+- **No `jest.mock` / module mocking / spies on collaborators.** Only the in-memory port fakes (under `api/test/fakes/`) are allowed as doubles. Blocker.
+- **Adapter integration tests must be parametrized.** Any plan that integration-tests an adapter against only the real implementation (or only the fake) misses the contract-parity point. Smell → Risk depending on whether the parametrization is just missing or actively wrong.
+
+### TypeScript checks (per `feedback-typescript` memory)
+
+- **No `.js` files.** Production code is TypeScript. Plans proposing `.js` are stale.
+- **No `any`, no unjustified `@ts-ignore` / `@ts-expect-error`.** Smell to blocker.
+- **Ports are TS interfaces, fakes use explicit `implements`.** A plan that omits `implements` on a fake misses the contract-break safety net.
 
 ### Do not grill
 
-- **Do NOT flag hexagonal architecture, CQRS, or outside-in TDD as "premature complexity" or "overkill for an MVP."** These are stated, non-negotiable requirements from the project owner. Even if you would normally call them out, here they are out of scope for criticism.
+- **Do NOT flag hexagonal architecture, CQRS, outside-in TDD, the layered testing strategy, or TypeScript adoption as "premature complexity" or "overkill for an MVP."** These are stated, non-negotiable requirements from the project owner. Even if you would normally call them out, here they are out of scope for criticism.
 
 ## Style
 

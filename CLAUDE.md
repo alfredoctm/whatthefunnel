@@ -8,10 +8,17 @@ for the build sequence.
 
 ## Stack
 
+- **Language:** TypeScript 5.x, strict mode, ESM
 - **API service:** Node.js + Fastify
 - **Storage:** ClickHouse (primary, non-negotiable per goals)
 - **Orchestration:** Docker Compose — one command runs the whole stack
 - **Package manager:** npm
+- **Tests:** Jest + `ts-jest` (ESM) + `fastify.inject()`
+- **Dev runner:** `tsx watch`; **prod:** `tsc --build` → `dist/`, Node runs JS directly
+
+See the `feedback-typescript` memory for the full TS setup + the TDD-green gate that
+enforces `tsc --noEmit` at slice closeout. See `feedback-testing-strategy` for the
+layered testing rules.
 
 ## Layout
 
@@ -25,15 +32,18 @@ api/
     application/
       commands/              Command + handler pairs (writes)
       queries/               Query + handler pairs (reads)
-      ports/                 Interfaces (EventWriterPort, EventReaderPort, …)
+      ports/                 TS interfaces (EventWriterPort, EventReaderPort, …)
     adapters/
       inbound/http/          Fastify routes calling handlers
       outbound/clickhouse/   ClickHouse implementations of ports
-    composition.js           Wires adapters into handlers
-    server.js                Boots Fastify
+    composition.ts           buildApp({ eventWriter, eventReader }) factory
+    server.ts                Boots Fastify (reads env, constructs real adapters, calls buildApp)
   test/
-    acceptance/              Outside-in entry points (fastify.inject)
-    unit/                    Narrower tests as outside-in flow demands them
+    acceptance/              Outside-in entry points (fastify.inject + in-memory fakes)
+    unit/domain/             Domain unit tests only (no application-layer units)
+    integration/             Parametrized contract tests: real adapter vs. in-memory fake
+    fakes/                   In-memory port implementations shared by acceptance + integration
+  tsconfig.json
   package.json
   Dockerfile
 clickhouse/init/             Schema migrations, auto-loaded on first boot
@@ -213,6 +223,33 @@ scripts/tdd status              # print current state
 The guard's job is to make outside-in TDD physically harder to skip than to
 follow. If you find yourself unlocking constantly, the rule isn't working —
 revisit before disabling.
+
+`scripts/tdd green` is also a real gate (not just a state flip): it runs
+`npm run test:fast` and `npm run typecheck` (i.e., `tsc --noEmit`) and refuses
+to flip state if either fails. See the `feedback-typescript` memory for the
+gating design.
+
+### TDD-guard rhythm per slice
+
+State transitions inside a single outside-in slice:
+
+1. State is `GREEN` (or absent — bootstrap). `api/src/**` is locked.
+2. Write the failing acceptance test under `api/test/acceptance/` — TDD-guard
+   doesn't block this; tests live outside `api/src/`.
+3. Run the test, confirm it fails for the right reason.
+4. `scripts/tdd red <test-path>` — flips state to `RED`. `api/src/**` unlocks.
+5. Write the smallest production code (port → handler → adapters →
+   composition wiring) to make the test pass. Multiple `Write`/`Edit` calls
+   happen during this phase; the guard allows them all while state is `RED`.
+6. Once tests pass: `scripts/tdd green` — verifies `npm run test:fast` +
+   `npm run typecheck` actually pass, then flips state to `GREEN`. Refuses
+   to flip if either fails.
+7. Next slice starts from `GREEN`. Loop.
+
+**If you see a `TDD guard blocked` error mid-slice,** that's the harness
+working correctly — you tried to touch `api/src/**` while state wasn't `RED`.
+Either you forgot `scripts/tdd red` (most common), or you genuinely need to
+override (rare; use `scripts/tdd unlock "<reason>"`, audited).
 
 ### Audit log (`.claude/audit.jsonl`)
 
