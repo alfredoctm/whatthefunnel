@@ -1,20 +1,8 @@
 import { describe, it, expect } from '@jest/globals';
-import { randomUUID } from 'node:crypto';
 import { buildApp } from '../../src/composition.js';
-import { InMemoryEventReader } from '../fakes/InMemoryEventReader.js';
-import { InMemoryEventWriter } from '../fakes/InMemoryEventWriter.js';
-import type { Event } from '../../src/events/domain/Event.js';
-
-function makeEvent(partial: { userId: string; eventName: string; timestamp: Date }): Event {
-  return {
-    eventId: randomUUID(),
-    eventName: partial.eventName,
-    userId: partial.userId,
-    timestamp: partial.timestamp,
-    properties: {},
-    ingestedAt: new Date(),
-  };
-}
+import { InMemoryEventReader } from '../fakes/in-memory-event-reader.js';
+import { InMemoryEventWriter } from '../fakes/in-memory-event-writer.js';
+import { makeEvent } from '../fixtures/event.js';
 
 describe('GET /users/:user_id/events', () => {
   it("returns the user's events in timestamp-descending order", async () => {

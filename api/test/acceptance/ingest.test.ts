@@ -1,7 +1,7 @@
 import { describe, it, expect } from '@jest/globals';
 import { buildApp } from '../../src/composition.js';
-import { InMemoryEventWriter } from '../fakes/InMemoryEventWriter.js';
-import { InMemoryEventReader } from '../fakes/InMemoryEventReader.js';
+import { InMemoryEventWriter } from '../fakes/in-memory-event-writer.js';
+import { InMemoryEventReader } from '../fakes/in-memory-event-reader.js';
 
 describe('POST /events', () => {
   it('writes a valid event and returns 201', async () => {

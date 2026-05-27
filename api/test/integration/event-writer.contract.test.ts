@@ -1,12 +1,13 @@
 import { describe, it, expect, beforeEach, afterEach } from '@jest/globals';
 import { createClient, type ClickHouseClient } from '@clickhouse/client';
 import { randomUUID } from 'node:crypto';
-import type { Event } from '../../src/events/domain/Event.js';
-import type { EventWriterPort } from '../../src/events/application/ports/EventWriterPort.js';
-import { InMemoryEventWriter } from '../fakes/InMemoryEventWriter.js';
-import { ClickHouseEventWriter } from '../../src/events/adapters/outbound/clickhouse/ClickHouseEventWriter.js';
+import type { Event } from '../../src/events/domain/event.js';
+import type { EventWriterPort } from '../../src/events/application/ports/event-writer-port.js';
+import { InMemoryEventWriter } from '../fakes/in-memory-event-writer.js';
+import { ClickHouseEventWriter } from '../../src/events/adapters/outbound/clickhouse/clickhouse-event-writer.js';
+import { makeEvent } from '../fixtures/event.js';
 
-interface Fixture {
+interface Setup {
   writer: EventWriterPort;
   readBack: (userId: string) => Promise<Event[]>;
   cleanup: () => Promise<void>;
@@ -16,7 +17,7 @@ const CLICKHOUSE_URL = process.env['CLICKHOUSE_URL'] ?? 'http://localhost:8123';
 const CLICKHOUSE_USER = process.env['CLICKHOUSE_USER'] ?? 'wtf';
 const CLICKHOUSE_PASSWORD = process.env['CLICKHOUSE_PASSWORD'] ?? 'wtf';
 
-async function inMemoryFixture(): Promise<Fixture> {
+async function setupInMemory(): Promise<Setup> {
   const writer = new InMemoryEventWriter();
   return {
     writer,
@@ -26,7 +27,7 @@ async function inMemoryFixture(): Promise<Fixture> {
   };
 }
 
-async function clickHouseFixture(): Promise<Fixture> {
+async function setupClickHouse(): Promise<Setup> {
   const client: ClickHouseClient = createClient({
     url: CLICKHOUSE_URL,
     username: CLICKHOUSE_USER,
@@ -68,34 +69,32 @@ async function clickHouseFixture(): Promise<Fixture> {
 }
 
 const impls = [
-  { name: 'InMemoryEventWriter', factory: inMemoryFixture },
-  { name: 'ClickHouseEventWriter', factory: clickHouseFixture },
+  { name: 'InMemoryEventWriter', setup: setupInMemory },
+  { name: 'ClickHouseEventWriter', setup: setupClickHouse },
 ];
 
-describe.each(impls)('EventWriterPort contract: $name', ({ factory }) => {
-  let fx: Fixture;
+describe.each(impls)('EventWriterPort contract: $name', ({ setup }) => {
+  let env: Setup;
 
   beforeEach(async () => {
-    fx = await factory();
+    env = await setup();
   });
 
   afterEach(async () => {
-    await fx.cleanup();
+    await env.cleanup();
   });
 
   it('writes an event observable via the storage', async () => {
     const userId = `user-${randomUUID()}`;
-    const event: Event = {
-      eventId: randomUUID(),
-      eventName: 'test_event',
+    const event = makeEvent({
       userId,
+      eventName: 'test_event',
       timestamp: new Date('2026-05-27T12:00:00.000Z'),
       properties: { foo: 'bar' },
-      ingestedAt: new Date(),
-    };
+    });
 
-    await fx.writer.write(event);
-    const found = await fx.readBack(userId);
+    await env.writer.write(event);
+    const found = await env.readBack(userId);
 
     expect(found).toHaveLength(1);
     expect(found[0]).toMatchObject({
@@ -107,19 +106,19 @@ describe.each(impls)('EventWriterPort contract: $name', ({ factory }) => {
 
   it('writes multiple events for the same user, all observable', async () => {
     const userId = `user-${randomUUID()}`;
-    const events: Event[] = [1, 2, 3].map((i) => ({
-      eventId: randomUUID(),
-      eventName: `event_${i}`,
-      userId,
-      timestamp: new Date(`2026-05-27T12:0${i}:00.000Z`),
-      properties: { i: String(i) },
-      ingestedAt: new Date(),
-    }));
+    const events: Event[] = [1, 2, 3].map((i) =>
+      makeEvent({
+        userId,
+        eventName: `event_${i}`,
+        timestamp: new Date(`2026-05-27T12:0${i}:00.000Z`),
+        properties: { i: String(i) },
+      }),
+    );
 
     for (const e of events) {
-      await fx.writer.write(e);
+      await env.writer.write(e);
     }
-    const found = await fx.readBack(userId);
+    const found = await env.readBack(userId);
 
     expect(found).toHaveLength(3);
     const names = found.map((e) => e.eventName).sort();

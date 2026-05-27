@@ -1,6 +1,6 @@
 import type { ClickHouseClient } from '@clickhouse/client';
-import type { EventReaderPort } from '../../../application/ports/EventReaderPort.js';
-import type { Event } from '../../../domain/Event.js';
+import type { EventReaderPort } from '../../../application/ports/event-reader-port.js';
+import type { Event } from '../../../domain/event.js';
 
 interface EventRow {
   event_id: string;

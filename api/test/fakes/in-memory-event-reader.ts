@@ -1,5 +1,5 @@
-import type { Event } from '../../src/events/domain/Event.js';
-import type { EventReaderPort } from '../../src/events/application/ports/EventReaderPort.js';
+import type { Event } from '../../src/events/domain/event.js';
+import type { EventReaderPort } from '../../src/events/application/ports/event-reader-port.js';
 
 /**
  * In-memory implementation of EventReaderPort used by acceptance tests and

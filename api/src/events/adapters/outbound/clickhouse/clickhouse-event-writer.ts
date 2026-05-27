@@ -1,6 +1,6 @@
 import type { ClickHouseClient } from '@clickhouse/client';
-import type { EventWriterPort } from '../../../application/ports/EventWriterPort.js';
-import type { Event } from '../../../domain/Event.js';
+import type { EventWriterPort } from '../../../application/ports/event-writer-port.js';
+import type { Event } from '../../../domain/event.js';
 
 export class ClickHouseEventWriter implements EventWriterPort {
   constructor(private readonly client: ClickHouseClient) {}

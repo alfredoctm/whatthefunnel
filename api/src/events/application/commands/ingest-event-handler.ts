@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
-import type { Event } from '../../domain/Event.js';
-import type { EventWriterPort } from '../ports/EventWriterPort.js';
-import type { IngestEventCommand } from './IngestEventCommand.js';
+import type { Event } from '../../domain/event.js';
+import type { EventWriterPort } from '../ports/event-writer-port.js';
+import type { IngestEventCommand } from './ingest-event-command.js';
 
 export class IngestEventHandler {
   constructor(private readonly writer: EventWriterPort) {}

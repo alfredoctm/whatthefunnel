@@ -1,13 +1,14 @@
 import { describe, it, expect, beforeEach, afterEach } from '@jest/globals';
 import { createClient, type ClickHouseClient } from '@clickhouse/client';
 import { randomUUID } from 'node:crypto';
-import type { Event } from '../../src/events/domain/Event.js';
-import type { EventReaderPort } from '../../src/events/application/ports/EventReaderPort.js';
-import { InMemoryEventReader } from '../fakes/InMemoryEventReader.js';
-import { ClickHouseEventReader } from '../../src/events/adapters/outbound/clickhouse/ClickHouseEventReader.js';
-import { ClickHouseEventWriter } from '../../src/events/adapters/outbound/clickhouse/ClickHouseEventWriter.js';
+import type { Event } from '../../src/events/domain/event.js';
+import type { EventReaderPort } from '../../src/events/application/ports/event-reader-port.js';
+import { InMemoryEventReader } from '../fakes/in-memory-event-reader.js';
+import { ClickHouseEventReader } from '../../src/events/adapters/outbound/clickhouse/clickhouse-event-reader.js';
+import { ClickHouseEventWriter } from '../../src/events/adapters/outbound/clickhouse/clickhouse-event-writer.js';
+import { makeEvent } from '../fixtures/event.js';
 
-interface Fixture {
+interface Setup {
   reader: EventReaderPort;
   seed: (events: Event[]) => Promise<void>;
   cleanup: () => Promise<void>;
@@ -17,22 +18,7 @@ const CLICKHOUSE_URL = process.env['CLICKHOUSE_URL'] ?? 'http://localhost:8123';
 const CLICKHOUSE_USER = process.env['CLICKHOUSE_USER'] ?? 'wtf';
 const CLICKHOUSE_PASSWORD = process.env['CLICKHOUSE_PASSWORD'] ?? 'wtf';
 
-function makeEvent(partial: {
-  userId: string;
-  eventName: string;
-  timestamp: Date;
-}): Event {
-  return {
-    eventId: randomUUID(),
-    eventName: partial.eventName,
-    userId: partial.userId,
-    timestamp: partial.timestamp,
-    properties: {},
-    ingestedAt: new Date(),
-  };
-}
-
-async function inMemoryFixture(): Promise<Fixture> {
+async function setupInMemory(): Promise<Setup> {
   const reader = new InMemoryEventReader();
   return {
     reader,
@@ -44,7 +30,7 @@ async function inMemoryFixture(): Promise<Fixture> {
   };
 }
 
-async function clickHouseFixture(): Promise<Fixture> {
+async function setupClickHouse(): Promise<Setup> {
   const client: ClickHouseClient = createClient({
     url: CLICKHOUSE_URL,
     username: CLICKHOUSE_USER,
@@ -68,25 +54,25 @@ async function clickHouseFixture(): Promise<Fixture> {
 }
 
 const impls = [
-  { name: 'InMemoryEventReader', factory: inMemoryFixture },
-  { name: 'ClickHouseEventReader', factory: clickHouseFixture },
+  { name: 'InMemoryEventReader', setup: setupInMemory },
+  { name: 'ClickHouseEventReader', setup: setupClickHouse },
 ];
 
-describe.each(impls)('EventReaderPort contract: $name', ({ factory }) => {
-  let fx: Fixture;
+describe.each(impls)('EventReaderPort contract: $name', ({ setup }) => {
+  let env: Setup;
 
   beforeEach(async () => {
-    fx = await factory();
+    env = await setup();
   });
 
   afterEach(async () => {
-    await fx.cleanup();
+    await env.cleanup();
   });
 
   it("returns the user's events in timestamp-descending order", async () => {
     const userId = `user-${randomUUID()}`;
     const otherUserId = `user-${randomUUID()}`;
-    await fx.seed([
+    await env.seed([
       makeEvent({
         userId,
         eventName: 'a',
@@ -104,7 +90,7 @@ describe.each(impls)('EventReaderPort contract: $name', ({ factory }) => {
       }),
     ]);
 
-    const events = await fx.reader.findByUser(userId, { limit: 10 });
+    const events = await env.reader.findByUser(userId, { limit: 10 });
 
     expect(events).toHaveLength(2);
     expect(events.map((e) => e.eventName)).toEqual(['b', 'a']);
@@ -113,7 +99,7 @@ describe.each(impls)('EventReaderPort contract: $name', ({ factory }) => {
 
   it('respects limit', async () => {
     const userId = `user-${randomUUID()}`;
-    await fx.seed([
+    await env.seed([
       makeEvent({
         userId,
         eventName: 'a',
@@ -131,14 +117,14 @@ describe.each(impls)('EventReaderPort contract: $name', ({ factory }) => {
       }),
     ]);
 
-    const events = await fx.reader.findByUser(userId, { limit: 2 });
+    const events = await env.reader.findByUser(userId, { limit: 2 });
 
     expect(events.map((e) => e.eventName)).toEqual(['c', 'b']);
   });
 
   it('respects the `before` cursor', async () => {
     const userId = `user-${randomUUID()}`;
-    await fx.seed([
+    await env.seed([
       makeEvent({
         userId,
         eventName: 'a',
@@ -156,7 +142,7 @@ describe.each(impls)('EventReaderPort contract: $name', ({ factory }) => {
       }),
     ]);
 
-    const events = await fx.reader.findByUser(userId, {
+    const events = await env.reader.findByUser(userId, {
       limit: 10,
       before: new Date('2026-05-27T11:30:00.000Z'),
     });
@@ -165,7 +151,7 @@ describe.each(impls)('EventReaderPort contract: $name', ({ factory }) => {
   });
 
   it('returns empty array for an unknown user', async () => {
-    await fx.seed([
+    await env.seed([
       makeEvent({
         userId: 'someone',
         eventName: 'a',
@@ -173,7 +159,7 @@ describe.each(impls)('EventReaderPort contract: $name', ({ factory }) => {
       }),
     ]);
 
-    const events = await fx.reader.findByUser('nobody', { limit: 10 });
+    const events = await env.reader.findByUser('nobody', { limit: 10 });
 
     expect(events).toEqual([]);
   });

@@ -1,5 +1,5 @@
-import type { Event } from '../../src/events/domain/Event.js';
-import type { EventWriterPort } from '../../src/events/application/ports/EventWriterPort.js';
+import type { Event } from '../../src/events/domain/event.js';
+import type { EventWriterPort } from '../../src/events/application/ports/event-writer-port.js';
 
 /**
  * In-memory implementation of EventWriterPort used by acceptance tests and

@@ -1,6 +1,6 @@
 import type { FastifyInstance } from 'fastify';
-import type { IngestEventHandler } from '../../../application/commands/IngestEventHandler.js';
-import type { GetUserEventsHandler } from '../../../application/queries/GetUserEventsHandler.js';
+import type { IngestEventHandler } from '../../../application/commands/ingest-event-handler.js';
+import type { GetUserEventsHandler } from '../../../application/queries/get-user-events-handler.js';
 
 interface IngestRequestBody {
   eventName: string;

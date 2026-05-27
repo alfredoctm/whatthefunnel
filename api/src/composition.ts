@@ -1,8 +1,8 @@
 import Fastify, { type FastifyInstance } from 'fastify';
-import type { EventWriterPort } from './events/application/ports/EventWriterPort.js';
-import type { EventReaderPort } from './events/application/ports/EventReaderPort.js';
-import { IngestEventHandler } from './events/application/commands/IngestEventHandler.js';
-import { GetUserEventsHandler } from './events/application/queries/GetUserEventsHandler.js';
+import type { EventWriterPort } from './events/application/ports/event-writer-port.js';
+import type { EventReaderPort } from './events/application/ports/event-reader-port.js';
+import { IngestEventHandler } from './events/application/commands/ingest-event-handler.js';
+import { GetUserEventsHandler } from './events/application/queries/get-user-events-handler.js';
 import { registerEventsRoutes } from './events/adapters/inbound/http/events.js';
 
 export interface Deps {

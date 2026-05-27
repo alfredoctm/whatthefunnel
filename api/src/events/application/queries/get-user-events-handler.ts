@@ -1,6 +1,6 @@
-import type { Event } from '../../domain/Event.js';
-import type { EventReaderPort } from '../ports/EventReaderPort.js';
-import type { GetUserEventsQuery } from './GetUserEventsQuery.js';
+import type { Event } from '../../domain/event.js';
+import type { EventReaderPort } from '../ports/event-reader-port.js';
+import type { GetUserEventsQuery } from './get-user-events-query.js';
 
 export class GetUserEventsHandler {
   constructor(private readonly reader: EventReaderPort) {}
