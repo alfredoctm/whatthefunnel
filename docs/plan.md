@@ -32,6 +32,9 @@ Before any app code, set up the automation surface.
 - [x] **TDD-guard hook** — `PreToolUse` on `Write|Edit` enforces outside-in TDD on `api/src/**` via `.claude/tdd-state`
 - [x] **`scripts/tdd` + `scripts/audit`** — TDD state manager + append-only event log (`.claude/audit.jsonl`)
 - [x] **`.gitignore`** — exclude per-machine state (`tdd-state`, `audit.jsonl`)
+- [x] **Write `ui-designer` sub-agent** — AI designer producing `prototype.html` + `ui-spec.md` per feature
+- [x] **Write `design-handoff` sub-agent** — reads prototype, drives implementation, surfaces ambiguities
+- [x] **Write `design-reviewer` sub-agent** — screenshots rendered feature, compares against prototype
 
 ## Phase 1 — Walking Skeleton
 
@@ -80,21 +83,41 @@ Built **outside-in**: every code step is preceded by a failing acceptance test.
 - [ ] **Hook: test-on-commit** — `PreToolUse` matching `git commit` runs `npm test` (unit + acceptance, not the docker integration tier)
 - [ ] **Append `thoughts/phase-1/findings.md`** with anything surprising
 
+## Phase 1.5 — Design System
+
+Goal: build the design system before any Phase 2 feature so prototypes draw
+from a real token set. End state: a single rendered HTML page (the first
+user-profile view from Slice 2 of Phase 1) styled with the design system
+tokens — proves the UI wiring + design-system + CSS-framework choice
+end-to-end.
+
+- [ ] **Pick CSS framework** — recommend Pico (semantic, no-build, plays well with HTMX) or Tailwind+DaisyUI (more flexibility, needs a build step). Lock in `package.json`.
+- [ ] **Pick interaction layer** — recommend HTMX (no build, server-rendered, matches single-Fastify-process). Add as a static asset under `api/src/adapters/inbound/http/static/`.
+- [ ] **`api/src/adapters/inbound/http/styles/tokens.css`** — design-system tokens: colors, type scale, spacing, radius. Source of truth for all prototypes and the real UI.
+- [ ] **`api/src/adapters/inbound/http/styles/components.css`** (or framework equivalent) — base components: button, table row, card, chart container.
+- [ ] **First rendered page** — render the user-event-list view (from Phase 1 Slice 2) as HTML using the tokens. Adds an inbound HTTP adapter for HTML responses (in addition to the existing JSON adapter). Same query handler, second presentation.
+- [ ] **Acceptance test for the HTML response** — outside-in: `GET /users/:id/events` with `Accept: text/html` returns a page with the expected events visible.
+- [ ] **Update `docs/design-system.md`** with the chosen framework, token list, and how `ui-designer` should reference them.
+- [ ] **Append `thoughts/phase-1.5/findings.md`** with the framework choice rationale and any quirks.
+
 ## Phase 2 — Features (vertical slices in worktrees)
 
-Goal: practice spec-driven, sub-agent-assisted feature delivery. Each feature
-follows the same loop. Each feature happens in its own worktree
+Goal: practice spec-driven, sub-agent-assisted, prototype-first feature
+delivery. Each feature follows the same eight-step loop in its own worktree
 (`EnterWorktree`) so the main branch stays clean.
 
 For each feature in this phase:
 
 1. `/clear` and re-anchor on `CLAUDE.md` + `docs/specs/<feature>/` + `thoughts/phase-2/`.
 2. Fill `requirements.md` (pair with user on ambiguity).
-3. Fill `design.md`, invoking `clickhouse-expert` for storage/query parts.
-4. Run `plan-griller` against `design.md`. Address blockers and risks.
-5. Fill `tasks.md` — vertical slices, 1–3h each.
-6. `EnterWorktree`, implement, validate via the `send-event` skill or real curl, exit worktree.
-7. Append to `thoughts/phase-2/findings.md`.
+3. **Grill 1 — requirements.** `plan-griller` against `requirements.md`. Address blockers.
+4. **Design.** Invoke `ui-designer` → produces `prototype.html` + `ui-spec.md` for the feature.
+5. Fill `design.md` (engineering), invoking `clickhouse-expert` for storage/query parts. Reference `prototype.html` in the Visual Design section.
+6. **Grill 2 — combined design.** `plan-griller` against `design.md` (which references the prototype + ui-spec). Address blockers and risks.
+7. Fill `tasks.md` — vertical slices, 1–3h each, first task is always the failing acceptance test.
+8. `EnterWorktree`, implement (invoke `design-handoff` to translate the prototype into the real feature), validate via the `send-event` skill or real curl.
+9. After tests green: run `code-reviewer` + `design-reviewer`. Address findings. Exit worktree.
+10. Append to `thoughts/phase-2/findings.md`.
 
 Features in priority order (from `goals.md`):
 

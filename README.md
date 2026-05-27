@@ -45,7 +45,8 @@ docker-compose.yml  Stack definition                       (Phase 1)
 docs/
   goals.md          Product scope, success criteria
   plan.md           Phase-by-phase roadmap
-  specs/            Per-feature requirements / design / tasks
+  design-system.md  Tokens, base components, CSS framework choice
+  specs/            Per-feature requirements / prototype / ui-spec / design / tasks
 thoughts/           Per-phase findings + progress log
 scripts/            tdd state manager, audit logger, hook scripts
 CLAUDE.md           Project context for Claude Code
@@ -74,7 +75,10 @@ to be worked on with [Claude Code](https://claude.com/claude-code) end-to-end:
 - **[`.claude/agents/`](.claude/agents/)** — custom sub-agents:
   - `clickhouse-expert` — schema and query specialist (port-contract aware)
   - `plan-griller` — adversarial plan reviewer (pre-implementation)
-  - `code-reviewer` — adversarial diff reviewer (post-implementation)
+  - `code-reviewer` — adversarial engineering-diff reviewer (post-implementation)
+  - `ui-designer` — AI designer; produces `prototype.html` + `ui-spec.md` per feature
+  - `design-handoff` — translates a feature's prototype into the implementation wiring plan
+  - `design-reviewer` — compares the rendered feature against the canonical prototype
 - **[`.claude/settings.json`](.claude/settings.json)** — permission allowlist
   plus two hooks: `SessionStart` (surfaces pending plan items, logs to audit) and
   `PreToolUse` (TDD-guard — blocks edits to `api/src/**` unless a failing test is
@@ -87,6 +91,12 @@ to be worked on with [Claude Code](https://claude.com/claude-code) end-to-end:
 
 If you're working on this repo with Claude Code, start by reading `CLAUDE.md`
 and the current phase in `docs/plan.md`.
+
+**Design approach:** UI design is AI-driven and prototype-first — `ui-designer`
+generates `docs/specs/<feature>/prototype.html` (rendered with the project's
+CSS framework) as the source of truth. Engineering reads the prototype during
+implementation; `design-reviewer` validates the rendered feature against it
+post-build. Figma is optional documentation, not a critical-path tool.
 
 ## Out of scope (MVP)
 

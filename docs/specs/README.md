@@ -2,14 +2,13 @@
 
 Per-feature specification dirs for spec-driven development (SDD).
 
-Each feature has three files, filled out **before** implementation begins:
+Each feature has five files, filled out (mostly) **before** implementation begins:
 
-- **`requirements.md`** — what does this feature need to do? User-facing
-  behavior, success criteria. No solutions, just constraints.
-- **`design.md`** — how will we build it? Architecture, data model,
-  endpoints, query shapes, edge cases.
-- **`tasks.md`** — broken-down work items, each sized to 1–3 hours
-  (per the Walking Skeleton / micro-step discipline).
+- **`requirements.md`** — what does this feature need to do? User-facing behavior, success criteria. No solutions, just constraints.
+- **`prototype.html`** — *design artifact*. Produced by `ui-designer`. Self-contained HTML page rendered with the project CSS framework + design-system tokens. Shows every state (empty / loading / error / few / many / …) inline.
+- **`ui-spec.md`** — design rationale: intent, states, interactions, tokens used, decisions, open design questions.
+- **`design.md`** — engineering: data model, ports, command/query shapes, endpoints, acceptance test entry point. References `prototype.html`.
+- **`tasks.md`** — broken-down work items, each sized to 1–3 hours, vertical slices, **first item is always the failing acceptance test**.
 
 ## Why
 
@@ -19,17 +18,23 @@ input to design against, and creates a durable artifact that survives `/clear`.
 
 ## Workflow per feature
 
-1. **Read** `goals.md`, the architecture section in `CLAUDE.md`, and any relevant `thoughts/`.
-2. **Write `requirements.md`** — pair with the user, ask clarifying questions. No solutions.
-3. **Write `design.md`** — must name:
+Eight steps. Mirrors a real product-team flow (PRD review → design + eng in parallel → joint review → build → review). See [`../../CLAUDE.md`](../../CLAUDE.md) → "Spec-driven features" and "Design phase" for full context.
+
+1. **Read** `goals.md`, the Architecture + Design phase sections of `CLAUDE.md`, `docs/design-system.md`, and any relevant `thoughts/`.
+2. **Write `requirements.md`** — pair with user on ambiguity. No solutions.
+3. **Grill 1 — requirements.** Spawn `plan-griller` against `requirements.md` alone. Address blockers before any detailed work.
+4. **Design.** Invoke `ui-designer` sub-agent. Produces `prototype.html` + `ui-spec.md`. If `ui-spec.md` has open design questions, resolve them before step 5.
+5. **Write `design.md`** (engineering) — must name:
    - the **ports** involved (new or existing reader/writer/etc.)
    - the **command(s) and/or query(ies)** with their shapes
    - the **acceptance test entry point** (the HTTP request + expected response)
+   - the **Visual Design** section: link to `prototype.html`, summary of states being implemented
    - the ClickHouse query/schema parts — invoke `clickhouse-expert` sub-agent for these.
-4. **Run grill-me** — spawn `plan-griller` against the design. Address blockers and risks.
-5. **Write `tasks.md`** — vertical slices, 1–3 hours each. **First task is always the failing acceptance test.** Then port → handler (with unit test) → inbound adapter → outbound adapter → composition wiring.
-6. **Implement in a worktree** (`EnterWorktree`) so the feature is isolated.
-7. **Update `thoughts/phase-2/findings.md`** as you learn.
+6. **Grill 2 — combined design.** Spawn `plan-griller` against `design.md` (which references `prototype.html` + `ui-spec.md`). Attacks engineering correctness *and* whether engineering supports the prototype. Address blockers and risks.
+7. **Write `tasks.md`** — vertical slices, 1–3 hours each. **First task is always the failing acceptance test.** Then port → handler (with unit test) → inbound adapter (HTTP + HTML templates) → outbound adapter → composition wiring.
+8. **Implement in a worktree** (`EnterWorktree`). Invoke `design-handoff` to plan the wiring of `prototype.html` into real templates. Implement under the TDD-guard hook.
+9. **After tests green:** run `code-reviewer` (engineering diff) and `design-reviewer` (rendered feature vs. prototype). Address findings. Exit worktree.
+10. **Update `thoughts/phase-2/findings.md`** as you learn.
 
 ## Features
 

@@ -3,6 +3,13 @@
 > Status: SKELETON. Fill in after requirements, before tasks.
 > Follows hexagonal + CQRS per [`CLAUDE.md`](../../../CLAUDE.md#architecture).
 
+## Visual design
+
+- **Prototype:** [`prototype.html`](prototype.html) — source of truth, produced by `ui-designer`.
+- **Spec:** [`ui-spec.md`](ui-spec.md) — rationale, states, interactions.
+- **States in prototype:** TODO — list the states the prototype covers (empty, loading, error, few groups, many groups, high-cardinality overflow, …).
+- **Open design questions:** TODO — pull from `ui-spec.md`; must be empty before engineering implementation starts.
+
 ## Acceptance test entry point
 
 TODO. Example:

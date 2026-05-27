@@ -130,13 +130,16 @@ Append as you go. Before `/clear`-ing, make sure both files reflect the session.
 
 ### Spec-driven features
 
-Phase 2 features get their own dir under `docs/specs/<feature>/`:
+Phase 2 features get their own dir under `docs/specs/<feature>/`. The per-feature loop has eight steps; it mirrors a real product-team flow (PRD review → design + eng in parallel → joint review → build → review):
 
-1. Fill `requirements.md` (user-facing behavior, success criteria) *before* any design.
-2. Fill `design.md` (data model, queries, endpoints) *before* any implementation. Invoke `clickhouse-expert` sub-agent for the storage/query parts.
-3. Run **grill-me**: invoke the `plan-griller` sub-agent against the design before writing `tasks.md`. Address blockers and risks.
-4. Fill `tasks.md` with 1–3 hour vertical slices.
-5. Implement in a worktree (`EnterWorktree`) — keep feature work isolated.
+1. Fill `requirements.md` (user-facing behavior, success criteria, out of scope).
+2. **Grill 1 — requirements.** Invoke `plan-griller` against `requirements.md` alone. Catches problem-framing issues before any detailed work. Address blockers.
+3. **Design.** Invoke `ui-designer` sub-agent — produces `prototype.html` (rendered with the project CSS framework + design-system tokens) and `ui-spec.md` (rationale, states, interactions). This is the canonical design artifact. (See **Design phase** below.)
+4. Fill `design.md` — engineering: data model, queries, endpoints, ports impacted, command/query shapes, acceptance test entry point. Reference `prototype.html` in the Visual Design section. Invoke `clickhouse-expert` for storage/query parts.
+5. **Grill 2 — combined design.** Invoke `plan-griller` against `design.md` (which links to `prototype.html` and `ui-spec.md`). Attacks engineering correctness *and* whether the engineering supports the prototype (missing states, edge cases, perf concerns).
+6. Fill `tasks.md` with 1–3 hour vertical slices. **First task is always the failing acceptance test.**
+7. Implement in a worktree (`EnterWorktree`). The `design-handoff` sub-agent reads `prototype.html` + `ui-spec.md` and translates them into the real feature implementation (HTMX wiring, real data binding, real handlers).
+8. After tests green: run `code-reviewer` (attacks the engineering diff) and `design-reviewer` (screenshots the rendered feature, compares against `prototype.html`). Address before merging.
 
 ### Grill-me discipline
 
@@ -150,6 +153,40 @@ plan-griller's post-implementation counterpart. It attacks the *diff* against
 the spec, the architecture rules, and the audit log (did you actually do
 outside-in TDD?). Same Blocker/Risk/Smell/Nit format, verdict SHIP / SHIP WITH
 FIXES / DO NOT SHIP.
+
+## Design phase (AI-driven, prototype-first)
+
+UI design for WTF is **AI-driven**. A `ui-designer` sub-agent plays the
+designer role. The design artifact is **an HTML/CSS prototype rendered with
+the project's CSS framework**, not a Figma frame. See
+[`docs/design-system.md`](docs/design-system.md) for the design system + token
+structure.
+
+**Why prototype-first (not Figma):** the user wanted a real designer→engineer
+team handoff but is not a designer. Generating prototypes directly in the
+project's CSS framework means what the design specifies is exactly what ships
+(no Figma→CSS translation gap), keeps the user off the hook for design tool
+work, and still gives a clean designer→engineer artifact handoff — just both
+sides are AI-driven and the artifact is `prototype.html` + `ui-spec.md`. See
+the `feedback-design-workflow` memory.
+
+**Per-feature design artifacts** (live in `docs/specs/<feature>/`):
+
+- `prototype.html` — rendered design, opens in a browser, uses the project CSS framework + design-system tokens.
+- `ui-spec.md` — rationale, states (empty / loading / error / many / few), interactions, decisions made, open design questions.
+
+**Flow:**
+
+1. **Design system first.** Tokens (colors, type scale, spacing) and base components live in the design-system CSS (Phase 1.5). All feature prototypes draw from them.
+2. **Per-feature prototype.** After requirements are grilled, `ui-designer` produces `prototype.html` + `ui-spec.md` for the feature.
+3. **Engineering reads the prototype.** During implementation, `design-handoff` reads `prototype.html` + `ui-spec.md` and translates them into the real feature implementation: HTMX wiring, real data binding, real handlers — preserving the structure and tokens of the prototype.
+4. **Design review after implementation.** `design-reviewer` takes a screenshot of the rendered feature (via the `run` skill) and compares it against `prototype.html`. Reports visual deltas in Blocker / Risk / Smell / Nit format, parallel to `code-reviewer`.
+
+**Figma is optional.** It can be populated later for stakeholder communication
+or screenshot sharing, but it's never on the critical path. If introduced, the
+prototype remains authoritative and Figma frames are derived from it.
+
+**Do not:** ask the user to design in Figma, or treat Figma as a hard dependency.
 
 ## Harness automation
 
