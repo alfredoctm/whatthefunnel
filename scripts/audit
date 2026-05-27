@@ -1,0 +1,26 @@
+#!/usr/bin/env bash
+# Append a JSON event line to .claude/audit.jsonl.
+#
+# Usage:
+#   scripts/audit <event> [json-details]
+#
+# Examples:
+#   scripts/audit session_start
+#   scripts/audit tdd_red '{"test":"api/test/acceptance/ingest.test.js"}'
+#   scripts/audit hook_block '{"hook":"tdd-guard","file":"api/src/foo.js","reason":"no RED"}'
+
+set -euo pipefail
+
+EVENT="${1:?event name required}"
+DETAILS="${2:-}"
+[ -z "$DETAILS" ] && DETAILS='{}'
+
+REPO_ROOT="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
+mkdir -p "$REPO_ROOT/.claude"
+
+jq -nc \
+  --arg ts "$(date -u +%FT%TZ)" \
+  --arg event "$EVENT" \
+  --argjson details "$DETAILS" \
+  '{ts: $ts, event: $event, details: $details}' \
+  >> "$REPO_ROOT/.claude/audit.jsonl"

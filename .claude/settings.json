@@ -15,7 +15,9 @@
       "Bash(git diff:*)",
       "Bash(git log:*)",
       "Bash(git show:*)",
-      "Bash(git branch:*)"
+      "Bash(git branch:*)",
+      "Bash(scripts/tdd:*)",
+      "Bash(scripts/audit:*)"
     ]
   },
   "hooks": {
@@ -24,7 +26,18 @@
         "hooks": [
           {
             "type": "command",
-            "command": "printf '=== WTF — pending plan items ===\\n'; grep -E '^- \\[ \\]' docs/plan.md 2>/dev/null | head -30; printf '\\n'"
+            "command": "printf '=== WTF — pending plan items ===\\n'; grep -E '^- \\[ \\]' docs/plan.md 2>/dev/null | head -30; printf '\\n'; scripts/audit session_start '{}' 2>/dev/null || true"
+          }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "Write|Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "scripts/hooks/tdd-guard.sh"
           }
         ]
       }

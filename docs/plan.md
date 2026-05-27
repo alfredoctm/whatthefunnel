@@ -28,6 +28,10 @@ Before any app code, set up the automation surface.
 - [x] **Scaffold `docs/specs/`** — per-feature spec skeletons (user-profiles, segmentation, funnels)
 - [x] **Write `clickhouse-expert` sub-agent** — for schema and query design
 - [x] **Write `plan-griller` sub-agent** — adversarial plan reviewer
+- [x] **Write `code-reviewer` sub-agent** — post-implementation counterpart to grill-me
+- [x] **TDD-guard hook** — `PreToolUse` on `Write|Edit` enforces outside-in TDD on `api/src/**` via `.claude/tdd-state`
+- [x] **`scripts/tdd` + `scripts/audit`** — TDD state manager + append-only event log (`.claude/audit.jsonl`)
+- [x] **`.gitignore`** — exclude per-machine state (`tdd-state`, `audit.jsonl`)
 
 ## Phase 1 — Walking Skeleton
 

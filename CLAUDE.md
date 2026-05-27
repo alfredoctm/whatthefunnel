@@ -43,10 +43,16 @@ docs/
   plan.md                    Durable phase-by-phase roadmap
   specs/                     Per-feature requirements.md / design.md / tasks.md
 thoughts/                    Per-phase findings.md + progress.md (external memory)
+scripts/
+  audit                      Append a JSON event to .claude/audit.jsonl
+  tdd                        Manage TDD phase state (RED/GREEN/UNLOCK)
+  hooks/tdd-guard.sh         PreToolUse hook enforcing outside-in TDD
 .claude/
   settings.json              Permissions, hooks
-  agents/                    Custom sub-agents (clickhouse-expert, plan-griller)
+  agents/                    Custom sub-agents (clickhouse-expert, plan-griller, code-reviewer)
   skills/                    Project-local skills (Phase 1+)
+  tdd-state                  (gitignored) current TDD phase: RED|GREEN|UNLOCK
+  audit.jsonl                (gitignored) append-only event log
 ```
 
 ## How to run
@@ -82,6 +88,8 @@ These are non-negotiable. Do not propose dropping them as "premature complexity 
 - **Discover collaborators by what the test demands.** Mock at port boundaries, drop down to the next level only when the failing test requires the next layer to exist.
 - **Do not write a handler before the test that demands it.** Do not write an adapter before the handler demands it.
 - **First commit of a slice is the failing acceptance test.**
+
+This is enforced by the **TDD-guard hook** — see "Harness automation" below.
 
 ## Conventions
 
@@ -136,6 +144,54 @@ Before kicking off a phase or implementing a feature, spawn `plan-griller` to
 attack the plan. It returns a Blocker / Risk / Smell / Nit punch list and a
 GO / GO WITH CHANGES / REWORK verdict. Cheaper than discovering the issue
 mid-implementation.
+
+After implementing a slice and getting tests green, spawn `code-reviewer` —
+plan-griller's post-implementation counterpart. It attacks the *diff* against
+the spec, the architecture rules, and the audit log (did you actually do
+outside-in TDD?). Same Blocker/Risk/Smell/Nit format, verdict SHIP / SHIP WITH
+FIXES / DO NOT SHIP.
+
+## Harness automation
+
+Two pieces of automation enforce the workflow, not just document it.
+
+### TDD-guard hook (`scripts/hooks/tdd-guard.sh`)
+
+A `PreToolUse` hook on `Write|Edit`. Behavior:
+
+- If the target path is not under `api/src/**` → allow.
+- If `api/src/` doesn't exist or is empty (bootstrap) → allow.
+- If `.claude/tdd-state` contains `RED` or `UNLOCK` → allow.
+- Otherwise → **deny** (exit 2). Stderr surfaces to Claude with the workflow.
+
+Transition state with `scripts/tdd`:
+
+```bash
+scripts/tdd red <test-path>     # after writing a failing test
+scripts/tdd green               # after the test passes (re-locks api/src/**)
+scripts/tdd unlock "<reason>"   # explicit override (audited)
+scripts/tdd status              # print current state
+```
+
+The guard's job is to make outside-in TDD physically harder to skip than to
+follow. If you find yourself unlocking constantly, the rule isn't working —
+revisit before disabling.
+
+### Audit log (`.claude/audit.jsonl`)
+
+Append-only JSON-lines log of harness events: session starts, hook blocks, TDD
+state transitions. Every entry is `{ts, event, details}`.
+
+Written via:
+
+```bash
+scripts/audit <event> '<details-as-json>'
+```
+
+Both `.claude/tdd-state` and `.claude/audit.jsonl` are gitignored — they're
+per-working-tree state, not shared truth. Use the log to diagnose discipline
+drift ("how often did we unlock last week?") or to feed the `code-reviewer`
+agent when reviewing a slice.
 
 ## Out of scope (per goals.md)
 

@@ -47,10 +47,11 @@ docs/
   plan.md           Phase-by-phase roadmap
   specs/            Per-feature requirements / design / tasks
 thoughts/           Per-phase findings + progress log
+scripts/            tdd state manager, audit logger, hook scripts
 CLAUDE.md           Project context for Claude Code
 .claude/
-  settings.json     Permissions + SessionStart hook
-  agents/           Custom sub-agents (clickhouse-expert, plan-griller)
+  settings.json     Permissions + hooks (SessionStart, TDD-guard)
+  agents/           Custom sub-agents (clickhouse-expert, plan-griller, code-reviewer)
 ```
 
 ## Built with Claude Code
@@ -71,11 +72,18 @@ to be worked on with [Claude Code](https://claude.com/claude-code) end-to-end:
 - **[`thoughts/`](thoughts/)** — external memory across Claude sessions:
   per-phase `findings.md` (what we learned) and `progress.md` (what got done).
 - **[`.claude/agents/`](.claude/agents/)** — custom sub-agents:
-  - `clickhouse-expert` — schema and query specialist
-  - `plan-griller` — adversarial plan reviewer
+  - `clickhouse-expert` — schema and query specialist (port-contract aware)
+  - `plan-griller` — adversarial plan reviewer (pre-implementation)
+  - `code-reviewer` — adversarial diff reviewer (post-implementation)
 - **[`.claude/settings.json`](.claude/settings.json)** — permission allowlist
-  for the project's tools and a `SessionStart` hook that surfaces pending plan
-  items at the start of every session.
+  plus two hooks: `SessionStart` (surfaces pending plan items, logs to audit) and
+  `PreToolUse` (TDD-guard — blocks edits to `api/src/**` unless a failing test is
+  driving).
+- **[`scripts/`](scripts/)** — `tdd` (RED/GREEN/UNLOCK state manager),
+  `audit` (append-only event log helper), `hooks/tdd-guard.sh` (the
+  PreToolUse hook script). Together they enforce outside-in TDD via the
+  harness rather than discipline alone, and record every transition in
+  `.claude/audit.jsonl`.
 
 If you're working on this repo with Claude Code, start by reading `CLAUDE.md`
 and the current phase in `docs/plan.md`.
