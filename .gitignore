@@ -146,6 +146,11 @@ vite.config.ts.timestamp-*
 .claude/tdd-state
 .claude/audit.jsonl
 
+# Playwright (e2e/)
+test-results/
+playwright-report/
+playwright/.cache/
+
 # OS / editor cruft
 .DS_Store
 Thumbs.db

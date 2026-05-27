@@ -37,8 +37,18 @@ services:
     depends_on:
       clickhouse:
         condition: service_healthy
-    # Note: this service can't build until Phase 1 Slice 1 creates api/src/server.ts.
-    # Until then, bring up ClickHouse only:  docker compose up -d clickhouse
+
+  web:
+    build:
+      context: .
+      dockerfile: web/Dockerfile
+    container_name: wtf-web
+    restart: unless-stopped
+    ports:
+      - "8080:80"
+    depends_on:
+      api:
+        condition: service_started
 
 volumes:
   clickhouse-data:

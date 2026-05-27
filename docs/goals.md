@@ -25,13 +25,15 @@ The MVP is done when:
 3. **Funnels** — ordered step conversion analysis
 
 ## API (MVP)
-One endpoint:
 - `POST /events` — ingest a single event
+- `GET /users/:user_id/events` — read a user's event log (drives User Profiles)
+- Additional read endpoints land with Segmentation and Funnels
 
 ## Infrastructure
-- Fully Docker Compose based — one command to run the whole stack
+- Fully Docker Compose based — one command runs the whole stack (`api`, `clickhouse`, `web`)
 - Target: any developer comfortable with Docker, no DevOps expertise required
 - ClickHouse as the primary storage engine (non-negotiable)
+- **API:** Node + Fastify + TypeScript (strict, ESM). **UI:** React + Tailwind built statically, served by nginx (which also reverse-proxies `/api/*` to the api service).
 
 ## Out of Scope for MVP
 - Client/JS SDK
