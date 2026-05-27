@@ -122,7 +122,8 @@ For each feature in this phase:
 Features in priority order (from `goals.md`):
 
 - [ ] **User Profiles** — per-user event log page
-- [ ] **Event Segmentation** — filter/group events by properties over time
+- [ ] **Documentation pass — define the per-feature doc step** *(once User Profiles ships)*. Validate options against the real feature (C4 in Mermaid, ADRs, sequence diagrams, glossary, recorded demo, NotebookLM overview, dep graph via madge). Pick keepers, encode as step 11 in the per-feature loop in `CLAUDE.md` + `docs/specs/README.md`. Backfill docs for User Profiles as the first instance.
+- [ ] **Event Segmentation** — filter/group events by properties over time *(now with the documentation step included)*
 - [ ] **Funnels** — ordered step conversion analysis (likely `windowFunnel()` in ClickHouse)
 
 ## Phase 3 — Background and scheduled automation
