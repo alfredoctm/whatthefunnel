@@ -17,14 +17,14 @@ const CLICKHOUSE_URL = process.env['CLICKHOUSE_URL'] ?? 'http://localhost:8123';
 const CLICKHOUSE_USER = process.env['CLICKHOUSE_USER'] ?? 'wtf';
 const CLICKHOUSE_PASSWORD = process.env['CLICKHOUSE_PASSWORD'] ?? 'wtf';
 
-async function setupInMemory(): Promise<Setup> {
+function setupInMemory(): Promise<Setup> {
   const writer = new InMemoryEventWriter();
-  return {
+  return Promise.resolve({
     writer,
-    readBack: async (userId: string) =>
+    readBack: (userId: string) =>
       Promise.resolve(writer.writes.filter((e) => e.userId === userId)),
-    cleanup: async () => Promise.resolve(),
-  };
+    cleanup: () => Promise.resolve(),
+  });
 }
 
 async function setupClickHouse(): Promise<Setup> {

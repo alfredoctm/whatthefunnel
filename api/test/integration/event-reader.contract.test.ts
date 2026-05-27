@@ -18,16 +18,16 @@ const CLICKHOUSE_URL = process.env['CLICKHOUSE_URL'] ?? 'http://localhost:8123';
 const CLICKHOUSE_USER = process.env['CLICKHOUSE_USER'] ?? 'wtf';
 const CLICKHOUSE_PASSWORD = process.env['CLICKHOUSE_PASSWORD'] ?? 'wtf';
 
-async function setupInMemory(): Promise<Setup> {
+function setupInMemory(): Promise<Setup> {
   const reader = new InMemoryEventReader();
-  return {
+  return Promise.resolve({
     reader,
-    seed: async (events) => {
+    seed: (events) => {
       reader.events.push(...events);
       return Promise.resolve();
     },
-    cleanup: async () => Promise.resolve(),
-  };
+    cleanup: () => Promise.resolve(),
+  });
 }
 
 async function setupClickHouse(): Promise<Setup> {

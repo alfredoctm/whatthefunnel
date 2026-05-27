@@ -236,9 +236,9 @@ follow. If you find yourself unlocking constantly, the rule isn't working —
 revisit before disabling.
 
 `scripts/tdd green` is also a real gate (not just a state flip): it runs
-`npm run test:fast` and `npm run typecheck` (i.e., `tsc --noEmit`) and refuses
-to flip state if either fails. See the `feedback-typescript` memory for the
-gating design.
+`npm run test:fast`, `npm run typecheck` (i.e., `tsc --noEmit`), and
+`npm run lint` (ESLint) and refuses to flip state if any fail. See the
+`feedback-typescript` memory for the gating design.
 
 ### TDD-guard rhythm per slice
 
@@ -253,8 +253,8 @@ State transitions inside a single outside-in slice:
    composition wiring) to make the test pass. Multiple `Write`/`Edit` calls
    happen during this phase; the guard allows them all while state is `RED`.
 6. Once tests pass: `scripts/tdd green` — verifies `npm run test:fast` +
-   `npm run typecheck` actually pass, then flips state to `GREEN`. Refuses
-   to flip if either fails.
+   `npm run typecheck` + `npm run lint` actually pass, then flips state to
+   `GREEN`. Refuses to flip if any fail.
 7. Next slice starts from `GREEN`. Loop.
 
 **If you see a `TDD guard blocked` error mid-slice,** that's the harness

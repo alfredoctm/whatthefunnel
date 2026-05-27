@@ -12,9 +12,10 @@
 #   scripts/tdd unlock "<reason>"       — explicit override (audited)
 #   scripts/tdd status                  — print current state
 #
-# `green` requires api/package.json to define two npm scripts:
+# `green` requires api/package.json to define three npm scripts:
 #   "test:fast": runs unit + acceptance tiers (NOT integration)
 #   "typecheck": runs `tsc --noEmit`
+#   "lint":      runs `eslint . --ext .ts`
 # These are added in Phase 1's Tooling decisions block.
 #
 # `red` writes state directly without verification — it's a claim about a failing
@@ -83,10 +84,20 @@ case "$CMD" in
       exit 1
     fi
 
+    echo "Running npm run lint (eslint)..."
+    if ! (cd "$REPO_ROOT/api" && npm run --silent lint); then
+      echo "" >&2
+      echo "TDD green: REFUSED — lint errors. State unchanged." >&2
+      echo "Fix manually, or try: cd api && npm run lint:fix" >&2
+      echo "Or override: scripts/tdd unlock \"<reason>\"" >&2
+      "$AUDIT" tdd_green_refused '{"reason": "lint failed"}'
+      exit 1
+    fi
+
     mkdir -p "$(dirname "$STATE_FILE")"
     printf 'GREEN\n' > "$STATE_FILE"
-    "$AUDIT" tdd_green '{"tests": "passed", "typecheck": "passed"}'
-    echo "TDD state: GREEN  (tests + typecheck passed)"
+    "$AUDIT" tdd_green '{"tests": "passed", "typecheck": "passed", "lint": "passed"}'
+    echo "TDD state: GREEN  (tests + typecheck + lint passed)"
     echo "api/src/** is locked again — write a new failing test to unlock."
     ;;
   unlock)

@@ -4,6 +4,12 @@ import { InMemoryEventReader } from '../fakes/in-memory-event-reader.js';
 import { InMemoryEventWriter } from '../fakes/in-memory-event-writer.js';
 import { makeEvent } from '../fixtures/event.js';
 
+interface EventJson {
+  eventName: string;
+  userId: string;
+  timestamp: string;
+}
+
 describe('GET /users/:user_id/events', () => {
   it("returns the user's events in timestamp-descending order", async () => {
     const eventReader = new InMemoryEventReader([
@@ -35,7 +41,7 @@ describe('GET /users/:user_id/events', () => {
     });
 
     expect(response.statusCode).toBe(200);
-    const body = response.json() as Array<{ eventName: string; userId: string }>;
+    const body = response.json<EventJson[]>();
     expect(body).toHaveLength(2);
     expect(body[0]?.eventName).toBe('activated');
     expect(body[1]?.eventName).toBe('signup');
@@ -73,7 +79,7 @@ describe('GET /users/:user_id/events', () => {
     });
 
     expect(response.statusCode).toBe(200);
-    const body = response.json() as Array<{ eventName: string }>;
+    const body = response.json<EventJson[]>();
     expect(body).toHaveLength(2);
     expect(body.map((e) => e.eventName)).toEqual(['c', 'b']);
 
@@ -109,7 +115,7 @@ describe('GET /users/:user_id/events', () => {
     });
 
     expect(response.statusCode).toBe(200);
-    const body = response.json() as Array<{ eventName: string }>;
+    const body = response.json<EventJson[]>();
     expect(body.map((e) => e.eventName)).toEqual(['b', 'a']);
 
     await app.close();
