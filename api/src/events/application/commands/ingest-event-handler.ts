@@ -6,9 +6,10 @@ import type { IngestEventCommand } from './ingest-event-command.js';
 export class IngestEventHandler {
   constructor(private readonly writer: EventWriterPort) {}
 
-  async handle(cmd: IngestEventCommand): Promise<void> {
+  async handle(cmd: IngestEventCommand): Promise<string> {
+    const eventId = randomUUID();
     const event: Event = {
-      eventId: randomUUID(),
+      eventId,
       eventName: cmd.eventName,
       userId: cmd.userId,
       timestamp: cmd.timestamp,
@@ -16,5 +17,6 @@ export class IngestEventHandler {
       ingestedAt: new Date(),
     };
     await this.writer.write(event);
+    return eventId;
   }
 }

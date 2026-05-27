@@ -12,6 +12,11 @@ export interface Deps {
 
 export function buildApp(deps: Deps): FastifyInstance {
   const app = Fastify({ logger: false });
+
+  // Liveness probe — used by docker-compose healthcheck and any future
+  // orchestrator. Cross-cutting concern; not owned by an aggregate.
+  app.get('/health', () => ({ status: 'ok' }));
+
   const ingest = new IngestEventHandler(deps.eventWriter);
   const getUserEvents = new GetUserEventsHandler(deps.eventReader);
   registerEventsRoutes(app, { ingest, getUserEvents });

@@ -1,6 +1,7 @@
 import type { ClickHouseClient } from '@clickhouse/client';
 import type { EventReaderPort } from '../../../application/ports/event-reader-port.js';
 import type { Event } from '../../../domain/event.js';
+import { clickHouseToDate, dateToClickHouse } from './_datetime.js';
 
 interface EventRow {
   event_id: string;
@@ -32,7 +33,7 @@ export class ClickHouseEventReader implements EventReaderPort {
       limit: opts.limit,
     };
     if (opts.before !== undefined) {
-      params['before'] = formatDateTime64(opts.before);
+      params['before'] = dateToClickHouse(opts.before);
     }
 
     const result = await this.client.query({
@@ -50,12 +51,8 @@ function rowToEvent(row: EventRow): Event {
     eventId: row.event_id,
     eventName: row.event_name,
     userId: row.user_id,
-    timestamp: new Date(row.timestamp.replace(' ', 'T') + 'Z'),
+    timestamp: clickHouseToDate(row.timestamp),
     properties: row.properties,
-    ingestedAt: new Date(row.ingested_at.replace(' ', 'T') + 'Z'),
+    ingestedAt: clickHouseToDate(row.ingested_at),
   };
-}
-
-function formatDateTime64(d: Date): string {
-  return d.toISOString().replace('T', ' ').replace('Z', '');
 }

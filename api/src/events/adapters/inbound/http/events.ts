@@ -26,13 +26,13 @@ export interface EventsHttpHandlers {
 export function registerEventsRoutes(app: FastifyInstance, handlers: EventsHttpHandlers): void {
   app.post<{ Body: IngestRequestBody }>('/events', async (req, reply) => {
     const body = req.body;
-    await handlers.ingest.handle({
+    const eventId = await handlers.ingest.handle({
       eventName: body.eventName,
       userId: body.userId,
       timestamp: new Date(body.timestamp),
       properties: body.properties ?? {},
     });
-    return reply.code(201).send();
+    return reply.code(201).send({ eventId });
   });
 
   app.get<{ Params: GetUserEventsParams; Querystring: GetUserEventsQuerystring }>(

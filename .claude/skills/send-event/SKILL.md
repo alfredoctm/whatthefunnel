@@ -29,7 +29,7 @@ EOF
 )"
 ```
 
-Expected response: `HTTP 201` with empty body.
+Expected response: `HTTP 201` with body `{ "eventId": "<uuid>" }` — the server-generated event id, useful for correlating with later reads.
 
 ## Custom invocation
 

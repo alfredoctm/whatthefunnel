@@ -30,6 +30,10 @@ describe('POST /events', () => {
     expect(eventWriter.writes[0]?.eventId).toEqual(expect.any(String));
     expect(eventWriter.writes[0]?.ingestedAt).toBeInstanceOf(Date);
 
+    // The 201 response echoes the server-generated eventId so callers can correlate.
+    const body = response.json<{ eventId: string }>();
+    expect(body.eventId).toBe(eventWriter.writes[0]?.eventId);
+
     await app.close();
   });
 });
