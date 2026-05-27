@@ -57,3 +57,12 @@
 - Step 10 (documentation pass) added to the per-feature loop in `CLAUDE.md`, `docs/specs/README.md`, and `docs/plan.md` Phase 2.
 - Resolved task #35 ("After User Profiles: define + implement per-feature documentation step") — done early, against the richer target.
 - Glossary, recorded demos, NotebookLM, dep graph all deferred with rationale captured in `findings.md`.
+
+### Harness expansion
+- `.claude/skills/run/SKILL.md` — `/run` skill: `docker compose up -d --wait` + tail logs + smoke check.
+- `.claude/skills/send-event/SKILL.md` — `/send-event` skill: synthetic POST /events + round-trip verification.
+- `scripts/hooks/format-on-write.sh` — PostToolUse hook, runs prettier on api/** Write/Edit.
+- `scripts/hooks/lint-on-write.sh` — PostToolUse hook, runs eslint --fix on api/**/*.ts Write/Edit.
+- `scripts/hooks/test-on-commit.sh` — PreToolUse hook on Bash, runs npm run test:fast if `api/**` files are staged for a `git commit`. Blocks on failure.
+- All three smoke-tested with canned stdin input; wired into `.claude/settings.json` alongside the existing tdd-guard.
+- **Phase 1 complete.** Walking Skeleton + design discipline + automation harness all in place. Next phase is 1.5 (Design System).

@@ -40,6 +40,30 @@
             "command": "scripts/hooks/tdd-guard.sh"
           }
         ]
+      },
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "scripts/hooks/test-on-commit.sh"
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Write|Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "scripts/hooks/format-on-write.sh"
+          },
+          {
+            "type": "command",
+            "command": "scripts/hooks/lint-on-write.sh"
+          }
+        ]
       }
     ]
   }

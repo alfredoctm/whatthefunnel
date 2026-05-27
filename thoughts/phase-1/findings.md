@@ -121,3 +121,15 @@ offset (offset is O(n) in ClickHouse). Return is `Event[]`, no total count —
   - Step 10 added to the per-feature loop in `CLAUDE.md` (`Spec-driven features` section), `docs/specs/README.md`, and `docs/plan.md` Phase 2.
 - **Deferred** with rationale: glossary (no ambiguous terms have drifted yet), recorded demo + NotebookLM (more interesting once a UI exists in Phase 1.5+), madge dep graph (only 8 source files — graph is trivial today).
 - **Sync risk noted:** the 6 ADRs overlap heavily with the memory files. Memory is for me; ADRs are for humans. When updating one, scan the other. Acceptable cost for now.
+
+## 2026-05-27 — Harness expansion
+
+- Added **two skills** (`.claude/skills/run/`, `.claude/skills/send-event/`) for the two most-repeated developer actions. Each is a SKILL.md with frontmatter + body; Claude Code surfaces them as `/run` and `/send-event` in future sessions.
+- Added **three hook scripts** under `scripts/hooks/` (joining `tdd-guard.sh`):
+  - `format-on-write.sh` — PostToolUse, scopes to api/**, runs prettier --write
+  - `lint-on-write.sh` — PostToolUse, scopes to api/**/*.ts, runs eslint --fix
+  - `test-on-commit.sh` — PreToolUse on Bash, matches `git commit` invocations, runs test:fast only if api/** is staged, blocks (exit 2) on failure
+- All three smoke-tested with canned JSON stdin before being wired into `.claude/settings.json`.
+- **Hook activation caveat:** custom sub-agents and hooks from `.claude/` get loaded at session start. Hooks added mid-session may or may not pick up. Confirm by editing an api/** file and checking whether Prettier reformatted it. If not, restart the session.
+- **Design boundary worth holding:** format-on-write + lint-on-write are **friction reducers** (keep code clean while you type), not enforcement. Enforcement still lives at `scripts/tdd green` (which runs `test:fast` + `typecheck` + `lint`). If a refactor disables a hook accidentally, the gate still catches the slice. Don't conflate the two roles.
+- **test-on-commit is a backstop**, not a primary gate. Most commits will already have gone through `scripts/tdd green` so the hook is a no-op. It catches commits made via tooling that skips the gate (e.g., a commit on a non-api change made right after an unfinished slice), preventing a `tests-broken` commit from landing.

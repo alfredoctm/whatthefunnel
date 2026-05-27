@@ -130,12 +130,13 @@ This block defines the tier they share, so neither slice has to re-invent it.
 > (Tooling block above). Wiring these hooks earlier would fire them against
 > non-existent tools.
 
-- [ ] **`run` skill** (`.claude/skills/run/`) — start the stack and tail API logs (`docker compose up -d && docker compose logs -f api`).
-- [ ] **`send-event` skill** (`.claude/skills/send-event/`) — fire a synthetic event via `curl`. Depends on `run` (stack must be up).
-- [ ] **Hook: format-on-write** — `PostToolUse` on `Edit|Write` of `api/**/*.{ts,js,json}` → `npx prettier --write`. Lives in `.claude/settings.json`.
-- [ ] **Hook: lint-on-write** — same matcher (scoped to `api/**/*.ts`) → `npx eslint --fix`.
-- [ ] **Hook: test-on-commit (scoped)** — `PreToolUse` matching `git commit` runs `npm run test:fast` **only if `api/**` files are staged**. Skips full suite for docs-only / config-only / `.claude/`-only commits. Implementation: a small `scripts/hooks/test-on-commit.sh` that checks `git diff --cached --name-only` against `api/**` and exits 0 if no match. Integration tier runs in CI, not on commit.
-- [ ] **Append `thoughts/phase-1/findings.md` AND `thoughts/phase-1/progress.md`** — both files, per Phase 0 pattern. Capture: any TS+Jest+ESM friction (and the swc-jest fallback decision if used), any TDD-guard unlocks and why, any healthcheck quirks.
+- [x] **`run` skill** (`.claude/skills/run/SKILL.md`) — `docker compose up -d --wait` + `docker compose logs -f api` + a curl smoke check.
+- [x] **`send-event` skill** (`.claude/skills/send-event/SKILL.md`) — fires a synthetic event via `curl`; documents the round-trip read via `GET /users/:id/events`.
+- [x] **Hook: format-on-write** — `PostToolUse` on `Edit|Write` runs `scripts/hooks/format-on-write.sh`, which scopes to `api/**/*.{ts,js,json,md,yml}` and runs `npx prettier --write`. Silently no-ops on non-api paths; never blocks the parent tool call.
+- [x] **Hook: lint-on-write** — `PostToolUse` on `Edit|Write` runs `scripts/hooks/lint-on-write.sh`, scoped to `api/**/*.ts`, runs `npx eslint --fix`. Same silent no-op + non-blocking behavior.
+- [x] **Hook: test-on-commit (scoped)** — `PreToolUse` on `Bash` runs `scripts/hooks/test-on-commit.sh`, which (a) matches `git commit` invocations robustly via regex, (b) checks `git diff --cached --name-only` for any `api/**` entry, (c) runs `npm run test:fast` only if so, (d) exits 2 (blocking) on failure with audit log entry. Docs-only / config-only / `.claude/`-only commits stay fast.
+- [x] **Hooks all wired in `.claude/settings.json`** alongside the existing `tdd-guard` and `SessionStart` hooks. Tested with canned stdin input.
+- [x] **Append `thoughts/phase-1/findings.md` + `thoughts/phase-1/progress.md`** — captures the harness additions, the activation caveat (hooks may need next-session restart), and a note that `format-on-write` + `lint-on-write` are friction reducers while the TDD-green gate is the enforcement.
 
 ## Phase 1.5 — Design System
 
