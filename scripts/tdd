@@ -5,21 +5,24 @@
 # Values: RED | GREEN | UNLOCK
 #
 # Commands:
-#   scripts/tdd red <test-id>           — declare RED phase (failing test exists)
-#   scripts/tdd green                   — verify slice (npm run test:fast + typecheck),
-#                                          then flip to GREEN. Refuses if either fails.
-#                                          Bootstraps silently if api/package.json doesn't exist yet.
-#   scripts/tdd unlock "<reason>"       — explicit override (audited)
-#   scripts/tdd status                  — print current state
+#   scripts/tdd red <test-id>     — declare RED phase (failing test exists).
+#                                    Writes state directly without verification —
+#                                    a claim about a failing test the dev/AI
+#                                    just observed.
+#   scripts/tdd green             — verify slice across ALL workspaces
+#                                    (api, ui, e2e), then flip to GREEN. Refuses
+#                                    if any check fails. Bootstraps silently for
+#                                    workspaces missing package.json/node_modules
+#                                    or with empty src/.
+#   scripts/tdd unlock "<reason>" — explicit override (audited)
+#   scripts/tdd status            — print current state
 #
-# `green` requires api/package.json to define three npm scripts:
-#   "test:fast": runs unit + acceptance tiers (NOT integration)
-#   "typecheck": runs `tsc --noEmit`
-#   "lint":      runs `eslint . --ext .ts`
-# These are added in Phase 1's Tooling decisions block.
+# Per-workspace scripts the gate runs (when the workspace is set up):
+#   api: npm run test:fast + npm run typecheck + npm run lint
+#   ui:  npm run test       + npm run typecheck + npm run lint
+#   e2e: npm run typecheck + npm run lint  (no `test` — needs docker stack up)
 #
-# `red` writes state directly without verification — it's a claim about a failing
-# test that the developer/AI just observed. The hard gate is `green`.
+# TDD state is *global* — one RED unlocks both api/src/** and ui/src/**.
 
 set -euo pipefail
 
@@ -29,93 +32,134 @@ AUDIT="$REPO_ROOT/scripts/audit"
 
 CMD="${1:-status}"
 
+# ---------- helpers ----------
+
+flip_state() {
+  local new_state="$1"
+  mkdir -p "$(dirname "$STATE_FILE")"
+  printf '%s\n' "$new_state" > "$STATE_FILE"
+}
+
+# Run a per-workspace check script. Args: workspace, script-name.
+# Returns 0 on success, exits the parent script with an error message on failure.
+run_check() {
+  local ws="$1"
+  local script="$2"
+  if ! (cd "$REPO_ROOT/$ws" && npm run --silent "$script"); then
+    echo "" >&2
+    echo "TDD green: REFUSED — $ws/$script failed. State unchanged." >&2
+    echo "Fix it, or override: scripts/tdd unlock \"<reason>\"" >&2
+    "$AUDIT" tdd_green_refused "$(jq -nc --arg ws "$ws" --arg s "$script" '{workspace: $ws, script: $s}')"
+    exit 1
+  fi
+}
+
+# Is a workspace ready for gate checks?
+# (package.json + node_modules exist; at least one source file present.)
+workspace_ready() {
+  local ws="$1"
+  local pkg="$REPO_ROOT/$ws/package.json"
+  local node_modules="$REPO_ROOT/$ws/node_modules"
+  [ -f "$pkg" ] && [ -d "$node_modules" ]
+}
+
+# Does this workspace have any production source code yet?
+# api + ui look at src/; e2e looks at test/ (its "production" is the tests).
+workspace_has_source() {
+  local ws="$1"
+  local probe_dir
+  case "$ws" in
+    e2e) probe_dir="$REPO_ROOT/$ws/test" ;;
+    *)   probe_dir="$REPO_ROOT/$ws/src"  ;;
+  esac
+  [ -d "$probe_dir" ] && [ -n "$(find "$probe_dir" -type f \( -name '*.ts' -o -name '*.tsx' \) 2>/dev/null | head -n 1)" ]
+}
+
+# ---------- commands ----------
+
 case "$CMD" in
   red)
-    TEST_ID="${2:?test id required, e.g. scripts/tdd red api/test/acceptance/ingest.test.js}"
-    mkdir -p "$(dirname "$STATE_FILE")"
-    printf 'RED\n' > "$STATE_FILE"
+    TEST_ID="${2:?test id required, e.g. scripts/tdd red api/test/acceptance/ingest.test.ts}"
+    flip_state RED
     "$AUDIT" tdd_red "$(jq -nc --arg t "$TEST_ID" '{test: $t}')"
     echo "TDD state: RED  (failing test: $TEST_ID)"
-    echo "You may now edit api/src/**."
+    echo "You may now edit api/src/** and ui/src/**."
     ;;
+
   green)
-    PKG="$REPO_ROOT/api/package.json"
-    NODE_MODULES="$REPO_ROOT/api/node_modules"
-    SRC_DIR="$REPO_ROOT/api/src"
-
-    # Bootstrap: before package.json / node_modules exist, OR before the first
-    # .ts file lands in api/src/, there's nothing to verify. Allow flipping to
-    # GREEN and audit the bootstrap. Once production code exists, every flip
-    # is a real test+typecheck gate.
-    if [ ! -f "$PKG" ] || [ ! -d "$NODE_MODULES" ]; then
-      mkdir -p "$(dirname "$STATE_FILE")"
-      printf 'GREEN\n' > "$STATE_FILE"
-      "$AUDIT" tdd_green '{"bootstrap": true, "note": "no api/package.json or node_modules — verification skipped"}'
-      echo "TDD state: GREEN  (bootstrap — verification skipped, no api/package.json yet)"
-      echo "api/src/** is locked again — write a new failing test to unlock."
+    # Bootstrap: if no workspace is ready yet, allow GREEN without verification.
+    ANY_READY=0
+    for ws in api ui e2e; do
+      if workspace_ready "$ws" && workspace_has_source "$ws"; then
+        ANY_READY=1
+        break
+      fi
+    done
+    if [ "$ANY_READY" -eq 0 ]; then
+      flip_state GREEN
+      "$AUDIT" tdd_green '{"bootstrap": true, "note": "no workspace ready with source — verification skipped"}'
+      echo "TDD state: GREEN  (bootstrap — no workspace ready with source yet)"
+      echo "Locked again — write a new failing test to unlock."
       exit 0
     fi
 
-    if [ ! -d "$SRC_DIR" ] || [ -z "$(find "$SRC_DIR" -type f -name '*.ts' 2>/dev/null | head -n 1)" ]; then
-      mkdir -p "$(dirname "$STATE_FILE")"
-      printf 'GREEN\n' > "$STATE_FILE"
-      "$AUDIT" tdd_green '{"bootstrap": true, "note": "no .ts files under api/src/ yet — verification skipped"}'
-      echo "TDD state: GREEN  (bootstrap — verification skipped, no api/src/**/*.ts yet)"
-      echo "api/src/** is locked again — write a new failing test to unlock."
-      exit 0
-    fi
+    # Real gate: walk each workspace that's ready and run its checks.
+    RAN=()
+    for ws in api ui e2e; do
+      if ! workspace_ready "$ws"; then
+        echo "== $ws == (skipped — not initialized)"
+        continue
+      fi
+      if ! workspace_has_source "$ws"; then
+        echo "== $ws == (skipped — no source files yet)"
+        continue
+      fi
+      echo "== $ws =="
+      case "$ws" in
+        api)
+          run_check "$ws" "test:fast"
+          run_check "$ws" "typecheck"
+          run_check "$ws" "lint"
+          ;;
+        ui)
+          run_check "$ws" "test"
+          run_check "$ws" "typecheck"
+          run_check "$ws" "lint"
+          ;;
+        e2e)
+          # Skip test (needs docker stack up); typecheck + lint only.
+          run_check "$ws" "typecheck"
+          run_check "$ws" "lint"
+          ;;
+      esac
+      RAN+=("$ws")
+    done
 
-    # Real gate: tests + typecheck must pass before state flips to GREEN.
-    echo "Running npm run test:fast (unit + acceptance tiers)..."
-    if ! (cd "$REPO_ROOT/api" && npm run --silent test:fast); then
-      echo "" >&2
-      echo "TDD green: REFUSED — tests failed. State unchanged." >&2
-      echo "Fix the failing tests, or: scripts/tdd unlock \"<reason>\"" >&2
-      "$AUDIT" tdd_green_refused '{"reason": "tests failed"}'
-      exit 1
-    fi
-
-    echo "Running npm run typecheck (tsc --noEmit)..."
-    if ! (cd "$REPO_ROOT/api" && npm run --silent typecheck); then
-      echo "" >&2
-      echo "TDD green: REFUSED — type errors. State unchanged." >&2
-      echo "Fix the type errors, or: scripts/tdd unlock \"<reason>\"" >&2
-      "$AUDIT" tdd_green_refused '{"reason": "typecheck failed"}'
-      exit 1
-    fi
-
-    echo "Running npm run lint (eslint)..."
-    if ! (cd "$REPO_ROOT/api" && npm run --silent lint); then
-      echo "" >&2
-      echo "TDD green: REFUSED — lint errors. State unchanged." >&2
-      echo "Fix manually, or try: cd api && npm run lint:fix" >&2
-      echo "Or override: scripts/tdd unlock \"<reason>\"" >&2
-      "$AUDIT" tdd_green_refused '{"reason": "lint failed"}'
-      exit 1
-    fi
-
-    mkdir -p "$(dirname "$STATE_FILE")"
-    printf 'GREEN\n' > "$STATE_FILE"
-    "$AUDIT" tdd_green '{"tests": "passed", "typecheck": "passed", "lint": "passed"}'
-    echo "TDD state: GREEN  (tests + typecheck + lint passed)"
-    echo "api/src/** is locked again — write a new failing test to unlock."
+    flip_state GREEN
+    WORKSPACES_JSON="$(printf '%s\n' "${RAN[@]}" | jq -R . | jq -sc .)"
+    "$AUDIT" tdd_green "$(jq -nc --argjson w "$WORKSPACES_JSON" '{tests: "passed", typecheck: "passed", lint: "passed", workspaces: $w}')"
+    echo ""
+    echo "TDD state: GREEN  (workspaces: ${RAN[*]})"
+    echo "api/src/** and ui/src/** locked again — write a new failing test to unlock."
     ;;
+
   unlock)
     REASON="${2:?reason required, e.g. scripts/tdd unlock \"scaffolding initial Fastify boot\"}"
-    mkdir -p "$(dirname "$STATE_FILE")"
-    printf 'UNLOCK\n' > "$STATE_FILE"
+    flip_state UNLOCK
     "$AUDIT" tdd_unlock "$(jq -nc --arg r "$REASON" '{reason: $r}')"
     echo "TDD state: UNLOCK  (reason: $REASON)"
-    echo "Hook will allow api/src/** edits. Run \`scripts/tdd green\` when done."
+    echo "Hook will allow api/src/** and ui/src/** edits. Run \`scripts/tdd green\` when done."
     ;;
+
   status)
     if [ -f "$STATE_FILE" ]; then
       printf 'TDD state: '
       cat "$STATE_FILE"
     else
-      echo "TDD state: (none — api/src/** is locked)"
+      echo "TDD state: (none — api/src/** and ui/src/** are locked)"
     fi
     ;;
+
   *)
     echo "Unknown command: $CMD" >&2
     echo "Usage: scripts/tdd {red <test-id>|green|unlock <reason>|status}" >&2
