@@ -52,13 +52,13 @@ verifies tests + typecheck before flipping state).
 ### Tooling decisions (do first)
 
 - [x] **Grill the Phase 1 plan** — `plan-griller` run; findings applied in this section.
-- [ ] **TypeScript setup** (see `feedback-typescript` memory):
+- [x] **TypeScript setup** (see `feedback-typescript` memory):
   - TypeScript 5.x, **strict mode all flags on**, **ESM** (`"type": "module"` in `api/package.json`).
   - `api/tsconfig.json` with `strict: true`, `module: "ESNext"`, `target: "ES2022"`, `moduleResolution: "Bundler"`, `noEmit: true` for dev, separate `tsconfig.build.json` for prod `tsc --build` → `dist/`.
   - Dev runner: `tsx watch`. Prod: `tsc --build`, Docker copies `dist/` and runs Node on JS.
   - All `.ts` files. Ports are TS interfaces. Fakes use explicit `implements`.
   - npm scripts in `api/package.json`: `"dev": "tsx watch src/server.ts"`, `"build": "tsc --build tsconfig.build.json"`, `"typecheck": "tsc --noEmit"`.
-- [ ] **Test framework + strategy** (see `feedback-testing-strategy` memory):
+- [x] **Test framework + strategy** (see `feedback-testing-strategy` memory):
   - **Framework:** Jest + `ts-jest` preset (ESM mode) + `fastify.inject()`. Lock in `api/package.json`. If ts-jest ESM friction surfaces, fall back to `swc-jest` (record in `thoughts/phase-1/findings.md`).
   - npm scripts: `"test:fast": "jest --testPathPattern='test/(unit|acceptance)'"`, `"test:integration": "jest --testPathPattern='test/integration'"`, `"test": "npm run test:fast && npm run test:integration"`.
   - **Layered strategy:**
@@ -68,16 +68,16 @@ verifies tests + typecheck before flipping state).
     - **Adapter integration** (`api/test/integration/`) — parametrized: same test body runs against real adapter AND in-memory fake. Proves contract parity.
     - **Mocks** = only the in-memory port fakes (under `api/test/fakes/`). No `jest.mock`, no module mocking, no spies on collaborators.
     - Fixtures OK where they reduce repetition without hiding intent.
-- [ ] **Pick linter + formatter configs** — `eslint:recommended` + `@typescript-eslint/recommended` (TS-aware lint) + Prettier defaults. Add `api/.eslintrc.json` + `.prettierrc.json` (repo root). Required before the format-on-write / lint-on-write hooks land in the Claude harness expansion below.
-- [ ] **Wire `scripts/tdd green` into npm scripts.** Already calls `npm run test:fast` + `npm run typecheck`. Once these exist, `scripts/tdd green` becomes a real gate (it's a bootstrap no-op until then).
+- [x] **Pick linter + formatter configs** — `eslint:recommended` + `@typescript-eslint/recommended` (TS-aware lint) + Prettier defaults. Add `api/.eslintrc.json` + `.prettierrc.json` (repo root).
+- [x] **Wire `scripts/tdd green` into npm scripts.** Real gate: runs `npm run test:fast` + `npm run typecheck` + `npm run lint` before flipping state.
 
 ### Infrastructure
 
-- [ ] **`.nvmrc`** + `"engines": { "node": ">=20.x" }` in `package.json` — pin Node version for reproducibility (Docker + local dev).
-- [ ] **`docker-compose.yml`** — `clickhouse` + `api` services, one shared network. `clickhouse` service has a **healthcheck** (HTTP `GET /ping` returning 200) so `api` doesn't start against a not-yet-ready store; `api` `depends_on: { clickhouse: { condition: service_healthy } }`.
-- [ ] **`clickhouse/init/01_events.sql`** — `events` table schema. Invoke `clickhouse-expert` for schema only (ORDER BY, PARTITION BY, codecs, engine choice). Port contracts are application-layer and get defined when the handler that needs them is written (Slice 1 / Slice 2) — do NOT ask clickhouse-expert to design ports.
-- [ ] **`api/package.json` + `api/Dockerfile` + `api/tsconfig.json` + `api/tsconfig.build.json`** — package metadata, dependencies (`fastify`, `@clickhouse/client`, `typescript`, `tsx`, `@types/node`, `jest`, `ts-jest`, `@types/jest`, `eslint`, `@typescript-eslint/parser`, `@typescript-eslint/eslint-plugin`, `prettier`). Multi-stage Dockerfile: build stage runs `tsc --build`, runtime stage copies `dist/` + `node_modules` (prod only). **No `server.ts` yet** — that's production code and lives inside Slice 1, where the acceptance test demands it.
-- [ ] **`.env.example`** — declare config surface: `CLICKHOUSE_URL`, `PORT`, `LOG_LEVEL`. Document defaults. Real `.env` is gitignored.
+- [x] **`.nvmrc`** + `"engines": { "node": ">=22" }` in `api/package.json` — pinned to Node 22 LTS.
+- [x] **`docker-compose.yml`** — `clickhouse` + `api` services, shared network. `clickhouse` has a `/ping` healthcheck; `api` `depends_on: { clickhouse: { condition: service_healthy } }`.
+- [x] **`clickhouse/init/01_events.sql`** — `events` table (MergeTree, monthly partitions, ORDER BY `(event_name, toStartOfHour(timestamp), user_id, timestamp)`, Map(String,String) properties, bloom-filter skip indexes). Schema designed by `clickhouse-expert`.
+- [x] **`api/package.json` + `api/Dockerfile` + `api/tsconfig.json` + `api/tsconfig.build.json`** — deps installed (0 vulnerabilities); multi-stage Dockerfile builds + ships `dist/` only.
+- [x] **`.env.example`** — `CLICKHOUSE_URL`, `CLICKHOUSE_USER`, `CLICKHOUSE_PASSWORD`, `PORT`, `LOG_LEVEL` with defaults documented.
 
 ### Slice 1 — Ingest one event (outside-in) ✓ done
 
@@ -161,40 +161,40 @@ user-visible UI tier verified by a real browser test.
 - [x] **`ui/index.html`** + `ui/src/main.tsx` + `ui/src/App.tsx` (placeholder).
 - [x] **`npm install`** — 0 vulnerabilities; build clean; typecheck clean; lint clean.
 
-### Block 2 — First slice: UserEvents component (outside-in)
+### Block 2 — First slice: UserEvents component (outside-in) ✓ done
 
-- [ ] **Playwright E2E test (RED)** — `e2e/test/user-events.spec.ts`: bring up the full stack, seed an event via `POST /api/events`, load `/users/:id/events`, assert the event renders. (Built in Block 4 since Playwright lives there; this drives Block 2's React work.)
-- [ ] **Component test (RED)** — `ui/test/UserEvents.test.tsx`: render `<UserEvents>` with sample event data via RTL, assert event names + timestamps appear.
-- [ ] **Real component** — `ui/src/features/user-events/UserEvents.tsx` (Tailwind-styled). Pure: takes `events` as a prop.
-- [ ] **Preview** — `ui/src/features/user-events/UserEvents.preview.tsx`: renders `<UserEvents>` with stub data. Mounted at `/preview/user-events` for design review.
-- [ ] **Data fetching + route** — `ui/src/features/user-events/UserEventsPage.tsx` (or hook) fetches `/api/users/:userId/events` via a small `lib/api.ts` wrapper. Renders `<UserEvents>` with real data + loading + error states.
-- [ ] **Router** — `ui/src/routes.tsx` with `react-router-dom`: `/users/:userId/events` → `UserEventsPage`, `/preview/user-events` → `UserEvents.preview`.
+- [x] **Playwright E2E test** — `e2e/test/user-events.spec.ts`: 2 tests (seeded-event-renders + empty-state). Built in Block 4; drove Block 2's React work.
+- [x] **Component test** — `ui/test/UserEvents.test.tsx`: renders event names + empty state. Uses global `expect` (not `@jest/globals`) so jest-dom matcher augmentation reaches it.
+- [x] **Real component** — `ui/src/features/user-events/UserEvents.tsx` (Tailwind-styled, pure, takes events as a prop, empty-state branch).
+- [x] **Preview** — `ui/src/features/user-events/UserEvents.preview.tsx` at `/preview/user-events`. Renders populated + empty states.
+- [x] **Data fetching + route** — `UserEventsPage.tsx` (loading/error/ok states) + `lib/api.ts` typed `getUserEvents` wrapper.
+- [x] **Router** — `ui/src/routes.tsx` (`react-router-dom` v7 `createBrowserRouter`).
 
-### Block 3 — `web/` nginx container + docker-compose update
+### Block 3 — `web/` nginx container + docker-compose update ✓ done
 
-- [ ] **`web/Dockerfile`** — `nginx:alpine` base; multi-stage with a `ui-build` stage that runs `npm run build` and a runtime that copies `ui/dist/` into `/usr/share/nginx/html`.
-- [ ] **`web/nginx.conf`** — serve static assets from `/usr/share/nginx/html`; reverse-proxy `/api/*` to `http://api:3000/...`; SPA fallback (`try_files $uri /index.html`) for client-side routes.
-- [ ] **`docker-compose.yml`** — add `web` service exposed on `:8080`, `depends_on: { api: { condition: service_started } }`.
-- [ ] **Smoke check** — `docker compose up -d --wait`; browser at `http://localhost:8080` shows the React app; XHR to `/api/users/.../events` proxied correctly.
+- [x] **`web/Dockerfile`** — `nginx:alpine` runtime; multi-stage with `ui-build` running `npm run build`; build context = repo root so it can `COPY ui/`.
+- [x] **`web/nginx.conf`** — serves `/usr/share/nginx/html`; reverse-proxies `/api/*` to `api:3000/` (trailing slash on both strips the `/api` prefix); SPA fallback via `try_files $uri $uri/ /index.html`.
+- [x] **`docker-compose.yml`** — `web` service on `:8080`, `depends_on: { api: { condition: service_started } }`. *(Switched to `service_healthy` in Phase 2 prep #5 once api got a healthcheck.)*
+- [x] **Smoke check** — full stack `docker compose up -d --build --wait` healthy; React app loads; POST + GET via proxy round-trip cleanly; same-origin so no CORS.
 
-### Block 4 — `e2e/` Playwright workspace
+### Block 4 — `e2e/` Playwright workspace ✓ done
 
-- [ ] **`e2e/package.json`** — Playwright + TypeScript. `test:e2e` script.
-- [ ] **`e2e/playwright.config.ts`** — single chromium project; `baseURL: http://localhost:8080`; `globalSetup` brings up `docker compose up -d --wait`; `globalTeardown` brings it down (or leaves running based on env var).
-- [ ] **`e2e/test/user-events.spec.ts`** — first E2E. Seeds via `POST /api/events`, visits `/users/:id/events`, asserts event renders. This is the RED for Block 2 — it should fail until the UserEvents component + routing land.
-- [ ] **Closeout** — both component test and E2E test green. Document the run flow in `e2e/README.md`.
+- [x] **`e2e/package.json`** — Playwright + TS strict, ESLint + Prettier matching api/ui patterns.
+- [x] **`e2e/playwright.config.ts`** — single chromium project; `baseURL` from `WTF_BASE_URL` env or `http://localhost:8080`. Assumes stack is up (documented in `e2e/README.md`).
+- [x] **`e2e/test/user-events.spec.ts`** — 2 tests; seeds via `/api/events` proxy, navigates, asserts. Caught two real bugs the component test missed (relative asset paths; esbuild `--jsx=transform` default).
+- [x] **Closeout** — 2/2 green. Run flow in `e2e/README.md`.
 
-### Block 5 — Cascade
+### Block 5 — Cascade ✓ done
 
-- [ ] **Memories** — rewrite `feedback_design_workflow` for React (prototype = `.preview.tsx`, not `.html`). Update `feedback_testing_strategy` to add E2E tier. Update `feedback_typescript` to note ui/ has its own tsconfig + ESLint + jest configs.
-- [ ] **ADRs** — `0007-react-tailwind-esbuild.md` (UI stack rationale), `0008-playwright-e2e-primary.md` (E2E as primary for UI features). Update `0003-jest-and-ts-jest.md` and `0004-no-application-unit-tests.md` to reflect cross-workspace + E2E tier.
-- [ ] **CLAUDE.md** — Stack: add React + Tailwind + esbuild + Playwright. Layout: add `ui/`, `e2e/`, `web/`. Testing strategy: add E2E tier.
-- [ ] **`docs/architecture.md`** — update C4 Container diagram (add `web` + `ui-build`); add a UI-side Component diagram; add sequence diagram for "browser load `/users/:id/events`".
-- [ ] **`docs/design-system.md`** — rewrite for React + Tailwind (no more tokens.css; Tailwind config holds the theme).
-- [ ] **`docs/specs/<feature>/prototype.html` + `ui-spec.md` skeletons** — replace `prototype.html` with `<Feature>.preview.tsx` references; update `ui-spec.md` to use React-component vocabulary.
-- [ ] **Sub-agents** — rewrite `ui-designer` (produces React components + previews), `design-handoff` (reads React component spec + plans data wiring), `design-reviewer` (runs Playwright + screenshot comparison).
-- [ ] **Open question carried into Phase 2:** does the TDD-guard hook also cover `ui/src/**`? Currently scoped to `api/src/**`. Defer the decision until after Block 4 lands.
-- [ ] **Append `thoughts/phase-1.5/findings.md` + `progress.md`** — captures the React-without-Vite friction (React 19 JSX namespace move, esbuild CSS double-emit), the testing-tier shift, any nginx + reverse-proxy quirks.
+- [x] **Memories** — `feedback_design_workflow` rewritten for React; `feedback_testing_strategy` gained UI + E2E tiers; `feedback_typescript` restructured around three TS workspaces, esbuild `--jsx=automatic` footgun documented.
+- [x] **ADRs** — `0007-react-tailwind-esbuild.md`, `0008-playwright-e2e-primary.md` added. `0004` extended with "Extension for the UI tier."
+- [x] **CLAUDE.md** — Stack section lists three workspaces + React/Tailwind/esbuild/Playwright; Layout section grew `ui/`, `e2e/`, `web/` trees.
+- [x] **`docs/architecture.md`** — C4 Container added `web` (nginx) + reverse-proxy edge; new sequence diagram "browser loads /users/:userId/events" through the full stack.
+- [x] **`docs/design-system.md`** — full rewrite for Tailwind utility-first ("compose, don't restyle"); removed tokens.css/components.css framing.
+- [x] **`docs/specs/<feature>/`** — legacy `prototype.html` skeletons removed; per-feature `design.md` Visual Design sections reference the React preview component.
+- [x] **Sub-agents** — `ui-designer`, `design-handoff`, `design-reviewer` rewritten end-to-end for React + Playwright.
+- [x] **Open question carried into Phase 2:** does the TDD-guard hook also cover `ui/src/**`? *(Addressed in Phase 2 prep #3 — extended below.)*
+- [x] **Append `thoughts/phase-1.5/findings.md` + `progress.md`** — full journey captured (React 19 JSX namespace move, esbuild JSX default, CSS double-emit, SPA relative-paths trap, jest-dom + `@jest/globals` mismatch, nginx strip-prefix idiom).
 
 ## Phase 2 — Features (vertical slices in worktrees)
 
